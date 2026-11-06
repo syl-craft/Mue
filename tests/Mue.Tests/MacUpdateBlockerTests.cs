@@ -10,35 +10,57 @@ public class MacUpdateBlockerTests
     [InlineData("/Applications/Test.app/Contents/MacOS/Test", true)]
     [InlineData("/Applications/Test.app/Contents/Helpers/Child.app/Contents/MacOS/Child", true)]
     [InlineData("/Applications/Test.app2/Contents/MacOS/Test", false)]
-    [InlineData("/Applications/Test.app", false)]
+    [InlineData("/Applications/Test.app", true)]
     [InlineData("/Applications/test.app/Contents/MacOS/Test", false)]
     [InlineData("/Applications/Test.app/../Other.app/Test", false)]
     [InlineData("/Applications//Test.app/Contents/./MacOS/Test", true)]
     [InlineData("relative/Test.app/Test", false)]
     [InlineData(null, false)]
-    public void OnlyExecutablesUnderTheBundleAreIncluded(string? image, bool expected) =>
-        Assert.Equal(expected, MacUpdateBlockerRules.IsWithinBundle(image, Bundle + "/"));
+    public void MatchingUsesExactPathsOrDescendantsWithOrdinalComparison(string? image, bool expected) =>
+        Assert.Equal(expected, MacUpdateBlockerRules.MatchesPath(image, Bundle + "/"));
 
     [Fact]
     public void OriginalPathReachesRealpathWithoutLexicallyReducingParents()
     {
         const string original = "/tmp/alias/../Test.app/";
-        var result = MacUpdateBlockerRules.ResolveBundlePath(original, path =>
+        var query = new UpdateBlockerQuery([original], IncludeCurrentProcess: true);
+        var result = MacUpdateBlockerRules.ResolveQuery(query, path =>
         {
             Assert.Equal(original, path);
             return "/opt/releases/Test.app";
         });
-        Assert.Equal("/opt/releases/Test.app", result);
-        Assert.False(MacUpdateBlockerRules.IsWithinBundle("/tmp/alias/../Test.app/Probe", "/tmp/Test.app"));
+        Assert.Equal("/opt/releases/Test.app", Assert.Single(result.Paths));
+        Assert.True(result.IncludeCurrentProcess);
+        Assert.False(MacUpdateBlockerRules.MatchesPath("/tmp/alias/../Test.app/Probe", "/tmp/Test.app"));
     }
 
     [Theory]
     [InlineData("relative/Test.app")]
-    [InlineData("/tmp/Test")]
+    [InlineData("")]
     [InlineData("/tmp/Test\0.app")]
-    public void InvalidBundlePathsNeverReachRealpath(string path) =>
-        Assert.Throws<ArgumentException>(() => MacUpdateBlockerRules.ResolveBundlePath(path,
+    public void InvalidPathsNeverReachRealpath(string path) =>
+        Assert.ThrowsAny<ArgumentException>(() => MacUpdateBlockerRules.ResolveQuery(new([path]),
             _ => throw new InvalidOperationException("Must not resolve")));
+
+    [Fact]
+    public void AllQueryPathsAreResolvedWithoutLosingFilesOrCaseDifferences()
+    {
+        var query = new UpdateBlockerQuery([Bundle, "/tmp/helper", "/tmp/Helper", Bundle]);
+        var visited = new List<string>();
+        var resolved = MacUpdateBlockerRules.ResolveQuery(query, path =>
+        {
+            visited.Add(path);
+            return path;
+        });
+        Assert.Equal(query.Paths, visited);
+        Assert.Equal(new[] { Bundle, "/tmp/helper", "/tmp/Helper" }, resolved.Paths);
+        Assert.True(MacUpdateBlockerRules.MatchesPath("/tmp/helper", "/"));
+    }
+
+    [Fact]
+    public void ResolutionFailureIsNotAnEmptyScan() =>
+        Assert.Throws<IOException>(() => MacUpdateBlockerRules.ResolveQuery(new([Bundle]),
+            _ => throw new IOException("Accès refusé")));
 
     [Fact]
     public void StartTimeKeepsMicrosecondsInTheExistingFileTimeFormat()
@@ -58,9 +80,9 @@ public class MacUpdateBlockerTests
         processes.Add(44, Bundle + ".other/Contents/MacOS/Test");
         processes.Add(45, Bundle + "/Contents/MacOS/Ignored");
         var classifier = new Classifier();
-        var scan = Create(processes, currentPid: 42).Scan(Bundle, classifier, enrich: true);
+        var scan = Create(processes, currentPid: 42).Find(UpdateBlockerQuery.ForDirectory(Bundle), classifier, enrich: true);
         Assert.False(scan.Incomplete);
-        var blocker = Assert.Single(MacUpdateBlockerAdapter.ToLegacy(scan));
+        var blocker = Assert.Single(scan.Blockers);
         Assert.Equal(43, blocker.Pid);
         Assert.Equal(100, blocker.Started);
         Assert.True(blocker.IsRelay);
@@ -70,8 +92,79 @@ public class MacUpdateBlockerTests
         Assert.Null(classifier.Contexts[0].CommandLine);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void MultiplePathsAndOverlapsReturnEachProcessOnceAndPassTheQueryToTheClassifier(bool enrich)
+    {
+        var query = new UpdateBlockerQuery([Bundle, Bundle + "/Contents", "/tmp/helper"]);
+        var processes = new FakeProcesses();
+        processes.Add(42, Bundle + "/Contents/MacOS/Test");
+        processes.Add(43, "/tmp/helper");
+        processes.Add(44, "/tmp/helper2");
+        processes.Add(45, "/tmp/Helper");
+        var classifier = new Classifier();
+        var scan = Create(processes).Find(query, classifier, enrich);
+        Assert.Equal(new[] { 42, 43 }, scan.Blockers.Select(b => b.Pid).Order().ToArray());
+        Assert.False(scan.Incomplete);
+        Assert.Equal(enrich ? 2 : 0, classifier.Contexts.Count);
+        Assert.All(classifier.Contexts, context => Assert.Same(query, context.Query));
+        Assert.Equal(2, classifier.IgnoredQueries.Count);
+        Assert.All(classifier.IgnoredQueries, actual => Assert.Same(query, actual));
+        Assert.All(scan.Blockers, blocker => Assert.Equal(enrich, blocker.IsRelay));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task IncludingTheCurrentProcessOnlyAllowsDetection(bool unavailable)
+    {
+        var processes = new FakeProcesses();
+        processes.Add(99, unavailable ? null : Bundle + "/Contents/MacOS/Test",
+            unavailable ? MacProcessState.Unavailable : MacProcessState.Readable);
+        var operations = Create(processes);
+        Assert.Empty(operations.Find(new([Bundle]), new Classifier(), enrich: true).Blockers);
+        var scan = operations.Find(new([Bundle], IncludeCurrentProcess: true), new Classifier(), enrich: true);
+        var blocker = Assert.Single(scan.Blockers);
+        Assert.Equal(99, blocker.Pid);
+        Assert.Equal(unavailable, scan.Incomplete);
+        Assert.Equal(UpdateBlockerCloseResult.AccessDenied, await operations.CloseAsync(blocker, force: true));
+        Assert.Empty(processes.SignalAttempts);
+        Assert.Equal(0, processes.IdentityReads);
+    }
+
     [Fact]
-    public void UninspectableProcessesRemainInTheInternalScanBeforeLegacyReduction()
+    public void EmptyQueryDoesNotEnumerateProcesses()
+    {
+        var processes = new FakeProcesses { ListError = new IOException("Ne pas énumérer") };
+        var scan = Create(processes).Find(new([]), new Classifier(), enrich: true);
+        Assert.Empty(scan.Blockers);
+        Assert.False(scan.Incomplete);
+    }
+
+    [Fact]
+    public void EnumerationFailureIsNotAnEmptyScan()
+    {
+        var processes = new FakeProcesses { ListError = new IOException("Accès refusé") };
+        Assert.Throws<IOException>(() => Create(processes).Find(new([Bundle]), new Classifier(), enrich: true));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AnUnavailableBlockerNeverReachesNativeCallsEvenWithAKnownStartTime(bool force)
+    {
+        var processes = new FakeProcesses();
+        var blocker = new UpdateBlocker { Pid = 42, Started = 100, Unavailable = true };
+        Assert.Equal(UpdateBlockerCloseResult.AccessDenied, await Create(processes).CloseAsync(blocker, force));
+        Assert.Empty(processes.SignalAttempts);
+        Assert.Equal(0, processes.IdentityReads);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void UninspectableProcessesRemainVisibleAndMakeTheScanIncomplete(bool enrich)
     {
         var processes = new FakeProcesses();
         processes.Add(42, null, state: MacProcessState.Unavailable);
@@ -80,15 +173,24 @@ public class MacUpdateBlockerTests
         processes.Add(45, Bundle + "/Contents/MacOS/Test");
         var log = new Log();
         var classifier = new Classifier();
-        var scan = Create(processes, log: log).Scan(Bundle, classifier, enrich: false);
+        var operations = Create(processes, log: log);
+        var scan = operations.Find(UpdateBlockerQuery.ForDirectory(Bundle), classifier, enrich);
         Assert.True(scan.Incomplete);
-        Assert.Equal(new[] { 42, 43, 45 }, scan.Entries.Select(entry => entry.Process.Identity.Pid));
-        Assert.Equal(2, scan.Entries.Where(entry => entry.Process.Identity.State == MacProcessState.Unavailable).Count());
-        var blockers = MacUpdateBlockerAdapter.ToLegacy(scan);
-        Assert.Equal(new[] { 43, 45 }, blockers.Select(b => b.Pid).Order().ToArray());
-        Assert.Equal(0, blockers.Where(b => b.Pid == 43).Single().Started);
+        var blockers = scan.Blockers;
+        Assert.Equal(new[] { 42, 43, 45 }, blockers.Select(b => b.Pid).Order().ToArray());
+        Assert.Equal(new[] { 42, 43 }, blockers.Where(b => b.Unavailable).Select(b => b.Pid).Order().ToArray());
+        Assert.All(blockers.Where(b => b.Unavailable), blocker =>
+        {
+            Assert.Equal(0, blocker.Started);
+            Assert.False(blocker.Selected);
+            Assert.False(blocker.IsRelay);
+            Assert.Equal(UpdateTexts.F("Update_ProcessUnavailable", blocker.Pid), blocker.Detail);
+        });
+        var unknown = blockers.Where(b => b.Pid == 42).Single();
+        Assert.Equal("", unknown.File);
+        Assert.Equal(UpdateTexts.T("Update_UnknownProgram"), unknown.Name);
         Assert.Equal(2, log.Messages.Count);
-        Assert.Empty(classifier.Contexts);
+        Assert.Equal(enrich ? 1 : 0, classifier.Contexts.Count);
     }
 
     [Theory]
@@ -99,22 +201,22 @@ public class MacUpdateBlockerTests
     public async Task InvalidPidsAndSelfNeverReachNativeCalls(int pid)
     {
         var processes = new FakeProcesses();
-        Assert.Equal(MacCloseResult.AccessDenied,
+        Assert.Equal(UpdateBlockerCloseResult.AccessDenied,
             await Create(processes).CloseAsync(new() { Pid = pid, Started = 100 }, force: true));
         Assert.Empty(processes.Signals);
         Assert.Equal(0, processes.IdentityReads);
     }
 
     [Theory]
-    [InlineData(0, 100, (int)MacProcessState.Readable, (int)MacCloseResult.AccessDenied)]
-    [InlineData(100, 0, (int)MacProcessState.Unavailable, (int)MacCloseResult.AccessDenied)]
-    [InlineData(100, 0, (int)MacProcessState.Gone, (int)MacCloseResult.Gone)]
-    [InlineData(100, 101, (int)MacProcessState.Readable, (int)MacCloseResult.IdentityChanged)]
+    [InlineData(0, 100, (int)MacProcessState.Readable, (int)UpdateBlockerCloseResult.AccessDenied)]
+    [InlineData(100, 0, (int)MacProcessState.Unavailable, (int)UpdateBlockerCloseResult.AccessDenied)]
+    [InlineData(100, 0, (int)MacProcessState.Gone, (int)UpdateBlockerCloseResult.Gone)]
+    [InlineData(100, 101, (int)MacProcessState.Readable, (int)UpdateBlockerCloseResult.IdentityChanged)]
     public async Task UnverifiedOrObsoleteIdentitiesNeverReceiveSignals(long expected, long actual,
         int state, int result)
     {
         var processes = new FakeProcesses { Identity = Identity(started: actual, state: (MacProcessState)state) };
-        Assert.Equal((MacCloseResult)result,
+        Assert.Equal((UpdateBlockerCloseResult)result,
             await Create(processes).CloseAsync(new() { Pid = 42, Started = expected }, force: true));
         Assert.Empty(processes.Signals);
     }
@@ -123,7 +225,7 @@ public class MacUpdateBlockerTests
     public async Task ABlockerWithoutADetectionTokenCannotAuthorizeSignal()
     {
         var processes = new FakeProcesses();
-        Assert.Equal(MacCloseResult.AccessDenied,
+        Assert.Equal(UpdateBlockerCloseResult.AccessDenied,
             await Create(processes).CloseAsync(new() { Pid = 42, Started = 100 }, force: true));
         Assert.Empty(processes.Signals);
     }
@@ -135,7 +237,7 @@ public class MacUpdateBlockerTests
         var operations = Create(processes);
         var blocker = Detect(operations, processes);
         processes.Identity = Identity(pid: 43);
-        Assert.Equal(MacCloseResult.AccessDenied, await operations.CloseAsync(blocker, force: true));
+        Assert.Equal(UpdateBlockerCloseResult.AccessDenied, await operations.CloseAsync(blocker, force: true));
         Assert.Empty(processes.SignalAttempts);
     }
 
@@ -146,8 +248,9 @@ public class MacUpdateBlockerTests
         var operations = Create(processes);
         var blocker = Detect(operations, processes);
         Assert.Equal(0, blocker.Started);
+        Assert.True(blocker.Unavailable);
         processes.Identity = Identity();
-        Assert.Equal(MacCloseResult.AccessDenied, await operations.CloseAsync(blocker, force: true));
+        Assert.Equal(UpdateBlockerCloseResult.AccessDenied, await operations.CloseAsync(blocker, force: true));
         Assert.Empty(processes.SignalAttempts);
     }
 
@@ -160,23 +263,23 @@ public class MacUpdateBlockerTests
         var operations = Create(processes);
         var blocker = Detect(operations, processes);
         Assert.True(blocker.IsRelay);
-        Assert.Equal(MacCloseResult.Closed, await operations.CloseAsync(blocker, force));
+        Assert.Equal(UpdateBlockerCloseResult.Closed, await operations.CloseAsync(blocker, force));
         Assert.Equal((Token(), signal), Assert.Single(processes.Signals));
     }
 
     [Theory]
-    [InlineData(1, (int)MacCloseResult.AccessDenied)]
-    [InlineData(13, (int)MacCloseResult.AccessDenied)]
-    [InlineData(45, (int)MacCloseResult.AccessDenied)]
-    [InlineData(78, (int)MacCloseResult.AccessDenied)]
-    [InlineData(22, (int)MacCloseResult.StillRunning)]
-    [InlineData(0, (int)MacCloseResult.StillRunning)]
+    [InlineData(1, (int)UpdateBlockerCloseResult.AccessDenied)]
+    [InlineData(13, (int)UpdateBlockerCloseResult.AccessDenied)]
+    [InlineData(45, (int)UpdateBlockerCloseResult.AccessDenied)]
+    [InlineData(78, (int)UpdateBlockerCloseResult.AccessDenied)]
+    [InlineData(22, (int)UpdateBlockerCloseResult.StillRunning)]
+    [InlineData(0, (int)UpdateBlockerCloseResult.StillRunning)]
     public async Task SignalErrorsAndStillRunningAreNotReportedAsClosed(int error, int expected)
     {
         var processes = new FakeProcesses { SignalError = error };
         var operations = Create(processes);
         var blocker = Detect(operations, processes);
-        Assert.Equal((MacCloseResult)expected, await operations.CloseAsync(blocker, force: false));
+        Assert.Equal((UpdateBlockerCloseResult)expected, await operations.CloseAsync(blocker, force: false));
         Assert.Single(processes.Signals);
     }
 
@@ -188,7 +291,7 @@ public class MacUpdateBlockerTests
         var processes = new FakeProcesses { BeforeSignal = Identity(started: 101, version: 2) };
         var operations = Create(processes);
         var blocker = Detect(operations, processes);
-        Assert.Equal(MacCloseResult.IdentityChanged, await operations.CloseAsync(blocker, force));
+        Assert.Equal(UpdateBlockerCloseResult.IdentityChanged, await operations.CloseAsync(blocker, force));
         Assert.Empty(processes.Signals);
         Assert.Equal(Token(), Assert.Single(processes.SignalAttempts));
     }
@@ -202,7 +305,7 @@ public class MacUpdateBlockerTests
         processes.Identity = Identity(version: 2);
         // Un nouveau scan ne remplace pas le token attaché à l'ancien objet.
         Detect(operations, processes);
-        Assert.Equal(MacCloseResult.IdentityChanged, await operations.CloseAsync(blocker, force: true));
+        Assert.Equal(UpdateBlockerCloseResult.IdentityChanged, await operations.CloseAsync(blocker, force: true));
         Assert.Empty(processes.SignalAttempts);
     }
 
@@ -212,30 +315,67 @@ public class MacUpdateBlockerTests
         var processes = new FakeProcesses { BeforeSignal = Identity(state: MacProcessState.Gone) };
         var operations = Create(processes);
         var blocker = Detect(operations, processes);
-        Assert.Equal(MacCloseResult.Gone, await operations.CloseAsync(blocker, force: true));
+        Assert.Equal(UpdateBlockerCloseResult.Gone, await operations.CloseAsync(blocker, force: true));
         Assert.Empty(processes.Signals);
     }
 
     [Theory]
-    [InlineData((int)MacProcessState.Unavailable, 0, (int)MacCloseResult.AccessDenied)]
-    [InlineData((int)MacProcessState.Readable, 101, (int)MacCloseResult.IdentityChanged)]
+    [InlineData((int)MacProcessState.Unavailable, 0, (int)UpdateBlockerCloseResult.AccessDenied)]
+    [InlineData((int)MacProcessState.Readable, 101, (int)UpdateBlockerCloseResult.IdentityChanged)]
     public async Task IdentityAfterSignalDistinguishesUnreadableAndReusedPid(int state, long started, int expected)
     {
         var processes = new FakeProcesses { AfterSignal = Identity(started: started, state: (MacProcessState)state) };
         var operations = Create(processes);
         var blocker = Detect(operations, processes);
-        Assert.Equal((MacCloseResult)expected, await operations.CloseAsync(blocker, force: false));
+        Assert.Equal((UpdateBlockerCloseResult)expected, await operations.CloseAsync(blocker, force: false));
         Assert.Single(processes.Signals);
     }
 
     [Theory]
-    [InlineData((int)MacCloseResult.Closed, true)]
-    [InlineData((int)MacCloseResult.Gone, true)]
-    [InlineData((int)MacCloseResult.IdentityChanged, true)]
-    [InlineData((int)MacCloseResult.StillRunning, false)]
-    [InlineData((int)MacCloseResult.AccessDenied, false)]
-    public void LegacyAdapterExplicitlyReducesAllFiveResults(int result, bool expected) =>
-        Assert.Equal(expected, MacUpdateBlockerAdapter.ToLegacy((MacCloseResult)result));
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CancellationBeforeClosingNeverInspectsOrSignals(bool force)
+    {
+        var processes = new FakeProcesses();
+        var operations = Create(processes);
+        var blocker = Detect(operations, processes);
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => operations.CloseAsync(blocker, force, cancellation.Token));
+        Assert.Equal(0, processes.IdentityReads);
+        Assert.Empty(processes.SignalAttempts);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CancellationDuringIdentityInspectionPreventsTheSignal(bool force)
+    {
+        using var cancellation = new CancellationTokenSource();
+        var processes = new FakeProcesses { OnReadIdentity = cancellation.Cancel };
+        var operations = Create(processes);
+        var blocker = Detect(operations, processes);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => operations.CloseAsync(blocker, force, cancellation.Token));
+        Assert.Equal(1, processes.IdentityReads);
+        Assert.Empty(processes.SignalAttempts);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CancellationInterruptsExitWaitingWithoutAnotherSignal(bool force)
+    {
+        var time = new ObservedTime();
+        var processes = new FakeProcesses();
+        var operations = new MacUpdateBlockerOperations(processes, new Log(), 99, TimeSpan.FromSeconds(5), time);
+        var blocker = Detect(operations, processes);
+        using var cancellation = new CancellationTokenSource();
+        var closing = operations.CloseAsync(blocker, force, cancellation.Token);
+        await time.NextDelay();
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => closing.WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.Equal((Token(), force ? 9 : 15), Assert.Single(processes.Signals));
+    }
 
     [Fact]
     public async Task SoftCloseAllowsFourSecondsWithTheInjectedClock()
@@ -251,7 +391,7 @@ public class MacUpdateBlockerTests
         Assert.False(closing.IsCompleted);
         processes.Identity = Identity(state: MacProcessState.Gone);
         time.Advance(TimeSpan.FromSeconds(2));
-        Assert.Equal(MacCloseResult.Closed, await closing.WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.Equal(UpdateBlockerCloseResult.Closed, await closing.WaitAsync(TimeSpan.FromSeconds(5)));
         Assert.Equal((Token(), 15), Assert.Single(processes.Signals));
     }
 
@@ -270,7 +410,7 @@ public class MacUpdateBlockerTests
         await time.NextDelay();
         Assert.False(closing.IsCompleted);
         time.Advance(TimeSpan.FromSeconds(1));
-        Assert.Equal(MacCloseResult.StillRunning, await closing.WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.Equal(UpdateBlockerCloseResult.StillRunning, await closing.WaitAsync(TimeSpan.FromSeconds(5)));
         Assert.Equal((Token(), 15), Assert.Single(processes.Signals));
     }
 
@@ -282,7 +422,7 @@ public class MacUpdateBlockerTests
     private static UpdateBlocker Detect(MacUpdateBlockerOperations operations, FakeProcesses processes)
     {
         processes.Add(42, Bundle + "/Contents/MacOS/Test");
-        return Assert.Single(MacUpdateBlockerAdapter.ToLegacy(operations.Scan(Bundle, new Classifier(), enrich: true)));
+        return Assert.Single(operations.Find(UpdateBlockerQuery.ForDirectory(Bundle), new Classifier(), enrich: true).Blockers);
     }
 
     private sealed class FakeProcesses : IMacProcessAccess
@@ -292,15 +432,17 @@ public class MacUpdateBlockerTests
         public MacProcessIdentity? BeforeSignal { get; init; }
         public MacProcessIdentity? AfterSignal { get; init; }
         public int SignalError { get; init; }
+        public Exception? ListError { get; init; }
+        public Action? OnReadIdentity { get; init; }
         public int IdentityReads { get; private set; }
         public List<MacAuditToken> SignalAttempts { get; } = [];
         public List<(MacAuditToken Token, int Signal)> Signals { get; } = [];
         public void Add(int pid, string? image, MacProcessState state = MacProcessState.Readable) =>
             _processes[pid] = new(Identity with { Pid = pid, State = state,
                 Token = Identity.Token == null ? null : Token(pid, Identity.Token.Value.Version) }, image);
-        public IReadOnlyList<int> ListPids() => _processes.Keys.ToArray();
+        public IReadOnlyList<int> ListPids() => ListError == null ? _processes.Keys.ToArray() : throw ListError;
         public MacProcessSnapshot ReadProcess(int pid) => _processes[pid];
-        public MacProcessIdentity ReadIdentity(int pid) { IdentityReads++; return Identity; }
+        public MacProcessIdentity ReadIdentity(int pid) { IdentityReads++; OnReadIdentity?.Invoke(); return Identity; }
         public int SendSignal(MacAuditToken token, int signal)
         {
             SignalAttempts.Add(token);
@@ -338,7 +480,12 @@ public class MacUpdateBlockerTests
     private sealed class Classifier : IUpdateBlockerClassifier
     {
         public List<UpdateBlockerContext> Contexts { get; } = [];
-        public bool IsIgnored(string? image, string directory) => image?.EndsWith("/Ignored", StringComparison.Ordinal) == true;
+        public List<UpdateBlockerQuery> IgnoredQueries { get; } = [];
+        public bool IsIgnored(string? image, UpdateBlockerQuery query)
+        {
+            IgnoredQueries.Add(query);
+            return image?.EndsWith("/Ignored", StringComparison.Ordinal) == true;
+        }
         public UpdateBlockerClassification Classify(UpdateBlockerContext context)
         {
             Contexts.Add(context);

@@ -16,12 +16,13 @@ public sealed class MacUpdateBlockerFinder : IUpdateBlockerFinder
             exitTimeout);
     }
 
-    public IReadOnlyList<UpdateBlocker> Find(string directory, IUpdateBlockerClassifier classifier, bool enrich = true)
+    public UpdateBlockerScan Find(UpdateBlockerQuery query, IUpdateBlockerClassifier classifier, bool enrich = true)
     {
-        var bundle = MacUpdateBlockerRules.ResolveBundlePath(directory, MacProcessAccess.ResolvePath);
-        return MacUpdateBlockerAdapter.ToLegacy(_operations.Scan(bundle, classifier, enrich));
+        ArgumentNullException.ThrowIfNull(classifier);
+        var resolved = MacUpdateBlockerRules.ResolveQuery(query, MacProcessAccess.ResolvePath);
+        return _operations.Find(resolved, classifier, enrich);
     }
 
-    public async Task<bool> CloseAsync(UpdateBlocker blocker, bool force) =>
-        MacUpdateBlockerAdapter.ToLegacy(await _operations.CloseAsync(blocker, force).ConfigureAwait(false));
+    public Task<UpdateBlockerCloseResult> CloseAsync(UpdateBlocker blocker, bool force, CancellationToken token = default) =>
+        _operations.CloseAsync(blocker, force, token);
 }

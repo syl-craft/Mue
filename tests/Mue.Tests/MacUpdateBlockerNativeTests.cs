@@ -38,12 +38,12 @@ public class MacUpdateBlockerNativeTests
         Assert.True(blocker.Started > 0);
         Assert.EndsWith("/Contents/MacOS/Probe", blocker.File, StringComparison.Ordinal);
         Assert.False(blocker.Selected);
-        Assert.DoesNotContain(finder.Find(bundle.Path, new ProgramClassifier()), item => item.Pid == outside.Id);
-        Assert.True(await finder.CloseAsync(blocker, force: false));
+        Assert.DoesNotContain(finder.Find(new([bundle.Path]), new ProgramClassifier()).Blockers, item => item.Pid == outside.Id);
+        Assert.Equal(UpdateBlockerCloseResult.Closed, await finder.CloseAsync(blocker, force: false));
         await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5));
         Assert.Equal(128 + 15, process.ExitCode);
         Assert.False(outside.HasExited);
-        Assert.True(await finder.CloseAsync(blocker, force: false));
+        Assert.Equal(UpdateBlockerCloseResult.Gone, await finder.CloseAsync(blocker, force: false));
     }
 
     [MacFact]
@@ -53,7 +53,7 @@ public class MacUpdateBlockerNativeTests
         var process = bundle.StartSleep();
         var finder = new MacUpdateBlockerFinder();
         var blocker = await FindProcess(finder, bundle.Path, process);
-        Assert.True(await finder.CloseAsync(blocker, force: true));
+        Assert.Equal(UpdateBlockerCloseResult.Closed, await finder.CloseAsync(blocker, force: true));
         await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5));
         Assert.Equal(128 + 9, process.ExitCode);
     }
@@ -65,8 +65,10 @@ public class MacUpdateBlockerNativeTests
         var process = bundle.StartSleep();
         var finder = new MacUpdateBlockerFinder();
         var blocker = await FindProcess(finder, bundle.Path, process);
-        Assert.True(await finder.CloseAsync(new() { Pid = blocker.Pid, Started = blocker.Started - 10 }, force: true));
-        Assert.False(await finder.CloseAsync(new() { Pid = blocker.Pid, Started = 0 }, force: true));
+        Assert.Equal(UpdateBlockerCloseResult.IdentityChanged,
+            await finder.CloseAsync(new() { Pid = blocker.Pid, Started = blocker.Started - 10 }, force: true));
+        Assert.Equal(UpdateBlockerCloseResult.AccessDenied,
+            await finder.CloseAsync(new() { Pid = blocker.Pid, Started = 0 }, force: true));
         Assert.False(process.HasExited);
     }
 
@@ -78,9 +80,9 @@ public class MacUpdateBlockerNativeTests
         Assert.Equal("ready", await process.StandardOutput.ReadLineAsync().WaitAsync(TimeSpan.FromSeconds(5)));
         var finder = new MacUpdateBlockerFinder();
         var blocker = await FindProcess(finder, bundle.Path, process);
-        Assert.False(await finder.CloseAsync(blocker, force: false));
+        Assert.Equal(UpdateBlockerCloseResult.StillRunning, await finder.CloseAsync(blocker, force: false));
         Assert.False(process.HasExited);
-        Assert.True(await finder.CloseAsync(blocker, force: true));
+        Assert.Equal(UpdateBlockerCloseResult.Closed, await finder.CloseAsync(blocker, force: true));
         await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5));
         Assert.Equal(128 + 9, process.ExitCode);
     }
@@ -121,7 +123,7 @@ public class MacUpdateBlockerNativeTests
         var finder = new MacUpdateBlockerFinder();
         var blocker = await FindProcess(finder, bundle.Path, process);
         var elapsed = Stopwatch.StartNew();
-        Assert.True(await finder.CloseAsync(blocker, force: false));
+        Assert.Equal(UpdateBlockerCloseResult.Closed, await finder.CloseAsync(blocker, force: false));
         Assert.True(elapsed.Elapsed >= TimeSpan.FromSeconds(2));
         await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(1));
         Assert.Equal(0, process.ExitCode);
@@ -144,12 +146,12 @@ public class MacUpdateBlockerNativeTests
         Assert.Equal(3, access.SendSignal(token, 9));
     }
 
-    private static async Task<UpdateBlocker> FindProcess(MacUpdateBlockerFinder finder, string bundle, Process process)
+    private static async Task<UpdateBlocker> FindProcess(IUpdateBlockerFinder finder, string bundle, Process process)
     {
         for (var attempt = 0; attempt < 50; attempt++)
         {
             Assert.False(process.HasExited);
-            var blocker = finder.Find(bundle, new ProgramClassifier()).Where(item => item.Pid == process.Id).SingleOrDefault();
+            var blocker = finder.Find(new([bundle]), new ProgramClassifier()).Blockers.Where(item => item.Pid == process.Id).SingleOrDefault();
             if (blocker != null) return blocker;
             await Task.Delay(20);
         }

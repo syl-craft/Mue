@@ -1,5 +1,11 @@
 # Historique
 
+## Non publié
+
+- `MacUpdateBlockerFinder` utilise le contrat 0.2.0 : chemins multiples, inclusion facultative du processus courant et classifieur recevant la requête.
+- Les processus Mac illisibles restent listés avec `Unavailable` et rendent le scan `Incomplete` ; l'adaptateur 0.1.0 est retiré.
+- La fermeture Mac restitue les cinq résultats du contrat et accepte l'annulation, en conservant le signal lié à l'identité et le délai de cinq secondes.
+
 ## 0.2.0 — 2026-11-06
 
 - `ForcesShutdown` est remplacé par `ShutdownBehavior` : `Refuse`, `AskToQuit`, `Kill`.

@@ -1,6 +1,8 @@
-# NIN-348 T3 — corrections avant Mue 0.2.0
+# NIN-348 T3 — intégration au contrat Mue 0.2.0
 
-Les points 2, 4 et 5 sont corrigés sur `sylvain/t3-processus-mac`, sans changer les contrats publics 0.1.0.
+Les points 1 à 5 sont traités sur `sylvain/t3-processus-mac`, déjà rebasée sur
+`sylvain/b2-contrat-0-2-0` (`9fbd25e`). Le contrat 0.2.0, `Mue.Wpf`, le finder Windows
+et le backend Velopack restent inchangés. Aucun ajout au contrat n'est nécessaire.
 
 - **Signal lié à l'identité.** Le token complet vient de `task_name_for_pid` puis
   `task_info(TASK_AUDIT_TOKEN)`, dès la détection. Ces API publiques évitent de fabriquer un
@@ -26,18 +28,30 @@ Les points 2, 4 et 5 sont corrigés sur `sylvain/t3-processus-mac`, sans changer
   `TimeProvider`. Test pur d'une sortie à quatre secondes, délai configurable et absence d'escalade ;
   test natif d'un SIGTERM traité pendant trois secondes.
 
-**À brancher en 0.2.0 (points 1 et 3 différés).** `MacBlockerScan` conserve les PID non inspectables,
-leur état et `Incomplete`. `MacCloseResult` distingue déjà `Closed`, `Gone`, `IdentityChanged`,
-`StillRunning`, `AccessDenied`. Remplacer `MacUpdateBlockerAdapter` par l'adaptation vers
-`UpdateBlockerQuery`, `UpdateBlockerScan` et `UpdateBlockerCloseResult` définitifs de DockPad,
-puis exposer les états et libellés à l'hôte. Actuellement, l'adaptateur omet les PID sans appartenance
-connue au bundle, conserve les membres non inspectables avec `Started = 0`, perd `Incomplete`,
-et réduit les trois premiers résultats à `true`, les deux derniers à `false`.
+**Contrat 0.2.0 (points 1 et 3).** `Find(query, classifier, enrich)` retourne directement
+`UpdateBlockerScan`. Les PID dont le chemin est illisible sont conservés avec `Unavailable`,
+même si leur appartenance aux chemins demandés reste inconnue. Les processus disparus sont exclus,
+ainsi que ceux dont le chemin connu est hors de la requête ou explicitement ignoré par l'hôte.
+Une identité illisible pour un exécutable retenu donne également `Unavailable` : pas de
+classification ni de présélection, `Started = 0`, `Incomplete = true` et fermeture `AccessDenied`.
+Les tests couvrent ces états avec et sans enrichissement, y compris le libellé d'indisponibilité.
+
+`UpdateBlockerQuery.Paths` accepte plusieurs dossiers et fichiers absolus, résolus sans réduction
+lexicale préalable de `..`. Le filtrage Mac reste sensible à la casse, sans modifier `Contains`
+du contrat partagé. Les chemins qui se recouvrent ne dupliquent pas les processus ; une requête
+vide ne les énumère pas. Le classifieur reçoit la requête résolue. `IncludeCurrentProcess` permet
+de lister le processus courant, sans autoriser sa fermeture.
+
+`CloseAsync(blocker, force, token)` retourne directement `UpdateBlockerCloseResult` :
+`Closed`, `Gone`, `IdentityChanged`, `StillRunning`, `AccessDenied`. L'adaptateur 0.1.0 et les
+types intermédiaires de scan et de fermeture sont retirés. L'annulation est vérifiée avant
+l'inspection, avant le signal et pendant l'attente ; elle n'entraîne ni nouveau signal ni escalade.
 Les objets recréés ou transmis à une autre instance ne permettent pas de signaler un processus vivant.
 
 **Vérifications Windows :** `dotnet build Mue.sln -m:4` et `dotnet test -m:4`, zéro avertissement ;
-100 tests réussis, 9 natifs ignorés. Les tests natifs portent `MacNative` **et** `RealMachine`.
+147 tests réussis, 9 natifs ignorés. Les tests natifs portent `MacNative` **et** `RealMachine`.
 Ils couvrent notamment le rejet noyau d'un token de génération périmée ; les tests purs injectent
 une réutilisation du PID entre la dernière lecture et le signal. Aucune connexion au Mac tentée.
 Les signatures, permissions effectives et scénarios natifs restent à valider sur macOS 15+ avec
-`dotnet test tests/Mue.Tests/Mue.Tests.csproj -m:4 --filter Category=RealMachine`.
+`dotnet test tests/Mue.Tests/Mue.Tests.csproj -m:4 --filter Category=MacNative`.
+La recette DockPad et ses rendus n'ont pas été rejoués ; aucune version ni aucun paquet n'est publié.
