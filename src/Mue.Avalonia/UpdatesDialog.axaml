@@ -53,9 +53,9 @@
                      Foreground="{DynamicResource Brush.TextSubtle}" VerticalAlignment="Center" Margin="8,0,0,0"/>
         </Grid>
         <WrapPanel HorizontalAlignment="Right">
-          <Button Name="SecondaryButton" Content="{Binding SecondaryLabel}" Theme="{DynamicResource SecondaryButton}"
+          <Button Name="SecondaryButton" Theme="{DynamicResource SecondaryButton}"
                   IsEnabled="{Binding SecondaryEnabled}" Click="Secondary_Click" Margin="0,0,8,0"/>
-          <Button Name="InstallButton" Content="{Binding PrimaryLabel}" Theme="{DynamicResource PrimaryButton}"
+          <Button Name="InstallButton" Theme="{DynamicResource PrimaryButton}"
                   IsEnabled="{Binding PrimaryEnabled}" Click="Primary_Click"/>
         </WrapPanel>
       </StackPanel>

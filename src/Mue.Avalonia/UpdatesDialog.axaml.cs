@@ -54,6 +54,8 @@ public partial class UpdatesDialog : Window
     private void RefreshDisplay()
     {
         if (_closed) return;
+        InstallButton.Content = AvaloniaUpdateTexts.T(_updates.Presentation.PrimaryKey);
+        SecondaryButton.Content = AvaloniaUpdateTexts.T(_updates.Presentation.SecondaryKey);
         if (_updates.State == UpdateState.Checking) SetPreparationSummary(null);
         InstallButton.Bind(ThemeProperty, new DynamicResourceExtension(_updates.PrimaryAccent ? "PrimaryButton" : "SecondaryButton"));
         StateLabel.Bind(TextBlock.ForegroundProperty, new DynamicResourceExtension(_updates.State == UpdateState.Failed ? "Brush.Danger" : "Brush.TextLabel"));

@@ -52,8 +52,8 @@ public sealed class CaptureTests
                 }
                 Assert.Equal(state, service.State);
                 Capture(dialog, state.ToString(), dark, width, height);
-                Assert.Equal(service.PrimaryLabel, Fixtures.Control<Button>(dialog, "InstallButton").Content);
-                Assert.Equal(service.SecondaryLabel, Fixtures.Control<Button>(dialog, "SecondaryButton").Content);
+                Assert.Equal(service.Presentation.PrimaryKey == "Common_Close" ? "Fermer" : service.PrimaryLabel, Fixtures.Control<Button>(dialog, "InstallButton").Content);
+                Assert.Equal(service.Presentation.SecondaryKey == "Common_Close" ? "Fermer" : service.SecondaryLabel, Fixtures.Control<Button>(dialog, "SecondaryButton").Content);
                 Assert.Equal(service.PrimaryEnabled, Fixtures.Control<Button>(dialog, "InstallButton").IsEnabled);
                 Assert.Equal(service.SecondaryEnabled, Fixtures.Control<Button>(dialog, "SecondaryButton").IsEnabled);
                 gate.TrySetResult();
@@ -72,6 +72,41 @@ public sealed class CaptureTests
                 Capture(dialog, incomplete ? "DetectionIncomplete-details" : "Blockers-details", dark, width, height);
                 dialog.Close();
             }
+            foreach (var behavior in Enum.GetValues<UpdateShutdownBehavior>())
+            {
+                var host = new TestHost { Blockers = [Fixtures.Blocker(), Fixtures.Blocker(pid: 91, selected: false)] };
+                var dialog = new UpdateBlockersDialog(UpdateBlockerQuery.ForDirectory(Path.GetTempPath()), host.Blockers,
+                    host, behavior, summary: host.Summary) { Width = width, Height = height };
+                dialog.Show();
+                if (behavior != UpdateShutdownBehavior.Kill) Capture(dialog, $"Blockers-{behavior}", dark, width, height);
+                await dialog.CloseSelectedAsync();
+                Capture(dialog, $"CooperativeFailure-{behavior}", dark, width, height);
+                Fixtures.Control<ScrollViewer>(dialog, "DetailsScroll").ScrollToEnd();
+                Capture(dialog, $"CooperativeFailure-{behavior}-details", dark, width, height);
+                dialog.Close();
+            }
+            var results = Enum.GetValues<UpdateBlockerCloseResult>();
+            var resultBlockers = results.Select((_, index) => Fixtures.Blocker(pid: index)).ToArray();
+            var resultHost = new TestHost
+            {
+                Blockers = resultBlockers,
+                CloseOverride = (blocker, _) => Task.FromResult(results[blocker.Pid]),
+            };
+            var resultDialog = new UpdateBlockersDialog(UpdateBlockerQuery.ForDirectory(Path.GetTempPath()), resultBlockers,
+                resultHost, UpdateShutdownBehavior.Kill) { Width = width, Height = height };
+            resultDialog.Show();
+            resultHost.Blockers = resultBlockers.Where(blocker => results[blocker.Pid] is UpdateBlockerCloseResult.StillRunning or UpdateBlockerCloseResult.AccessDenied).ToArray();
+            await resultDialog.CloseSelectedAsync();
+            Capture(resultDialog, "CloseResults", dark, width, height);
+            var resultPanel = Fixtures.Control<StackPanel>(resultDialog, "CloseResults");
+            foreach (var row in resultPanel.Children.OfType<TextBlock>())
+            {
+                row.BringIntoView();
+                resultDialog.UpdateLayout();
+                Capture(resultDialog, $"CloseResult-{results[resultPanel.Children.IndexOf(row)]}", dark, width, height);
+            }
+            resultDialog.Close();
+
         }
         finally { app.RequestedThemeVariant = previous; CultureInfo.CurrentUICulture = culture; UpdateTexts.Configure(null); }
     }

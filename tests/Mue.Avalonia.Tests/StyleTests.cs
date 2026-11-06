@@ -16,18 +16,26 @@ public sealed class StyleTests
     {
         var app = Application.Current ?? throw new InvalidOperationException();
         var original = app.Resources;
+        var originalStyles = app.Styles.ToArray();
+        app.Styles.Clear();
         try
         {
             app.Resources = new ResourceDictionary();
             foreach (var key in MueStyleKeys.Required) app.Resources.Add(key, new object());
             var expected = MueStyleKeys.Required.ToDictionary(key => key, key => app.Resources[key]);
             MueStyles.AddMissingDefaults(app);
+            Assert.Empty(app.Styles);
             Assert.Empty(app.Resources.MergedDictionaries);
             Assert.Empty(app.Resources.ThemeDictionaries);
             Assert.Equal(expected.Count, app.Resources.Count);
             foreach (var pair in expected) Assert.Same(pair.Value, app.Resources[pair.Key]);
         }
-        finally { app.Resources = original; }
+        finally
+        {
+            app.Resources = original;
+            app.Styles.Clear();
+            app.Styles.AddRange(originalStyles);
+        }
     }
 
     [AvaloniaFact]
@@ -35,12 +43,15 @@ public sealed class StyleTests
     {
         var app = Application.Current ?? throw new InvalidOperationException();
         var original = app.Resources;
+        var originalStyles = app.Styles.ToArray();
+        app.Styles.Clear();
         try
         {
             app.Resources = new ResourceDictionary();
             foreach (var key in MueStyleKeys.Required.Where(key => key != "Brush.Text")) app.Resources.Add(key, new object());
             MueStyles.AddMissingDefaults(app);
-            var fallback = Assert.IsType<ResourceDictionary>(Assert.Single(app.Resources.MergedDictionaries));
+            Assert.Empty(app.Resources.MergedDictionaries);
+            var fallback = Assert.IsType<ResourceDictionary>(Assert.IsType<Styles>(Assert.Single(app.Styles)).Resources);
             foreach (var variant in new[] { ThemeVariant.Light, ThemeVariant.Dark })
             {
                 var resources = Assert.IsType<ResourceDictionary>(fallback.ThemeDictionaries[variant]);
@@ -48,13 +59,55 @@ public sealed class StyleTests
                 Assert.True(resources.ContainsKey("Brush.Text"));
             }
             MueStyles.AddMissingDefaults(app);
-            Assert.Single(app.Resources.MergedDictionaries);
+            Assert.Single(app.Styles);
             var hostBrush = new SolidColorBrush(Colors.Purple);
             app.Resources.MergedDictionaries.Add(new ResourceDictionary { ["Brush.Text"] = hostBrush });
             Assert.True(app.TryFindResource("Brush.Text", ThemeVariant.Dark, out var result));
             Assert.Same(hostBrush, result);
         }
-        finally { app.Resources = original; }
+        finally
+        {
+            app.Resources = original;
+            app.Styles.Clear();
+            app.Styles.AddRange(originalStyles);
+        }
+    }
+
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ApplicationStylesThemeWinsBeforeAndAfterFallback(bool addThemeAfterFallback)
+    {
+        var app = Application.Current ?? throw new InvalidOperationException();
+        var original = app.Resources;
+        var originalStyles = app.Styles.ToArray();
+        var theme = new Styles();
+        var lightBrush = new SolidColorBrush(Colors.Purple);
+        var darkBrush = new SolidColorBrush(Colors.Orange);
+        theme.Resources.ThemeDictionaries[ThemeVariant.Light] = new ResourceDictionary { ["Brush.Text"] = lightBrush };
+        theme.Resources.ThemeDictionaries[ThemeVariant.Dark] = new ResourceDictionary { ["Brush.Text"] = darkBrush };
+        try
+        {
+            app.Resources = new ResourceDictionary();
+            app.Styles.Clear();
+            if (!addThemeAfterFallback) app.Styles.Add(theme);
+            MueStyles.AddMissingDefaults(app);
+            if (addThemeAfterFallback) app.Styles.Add(theme);
+            MueStyles.AddMissingDefaults(app);
+            Assert.Equal(2, app.Styles.Count);
+            Assert.Same(theme, app.Styles[1]);
+            Assert.Empty(app.Resources.MergedDictionaries);
+            Assert.True(app.TryFindResource("Brush.Text", ThemeVariant.Light, out var light));
+            Assert.Same(lightBrush, light);
+            Assert.True(app.TryFindResource("Brush.Text", ThemeVariant.Dark, out var dark));
+            Assert.Same(darkBrush, dark);
+        }
+        finally
+        {
+            app.Resources = original;
+            app.Styles.Clear();
+            app.Styles.AddRange(originalStyles);
+        }
     }
 
     [AvaloniaFact]

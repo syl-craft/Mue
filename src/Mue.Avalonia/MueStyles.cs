@@ -22,7 +22,7 @@ public static class MueStyles
             }
             if (resources.Count > 0) fallback.ThemeDictionaries.Add(variant, resources);
         }
-        // Le premier dictionnaire fusionné reste derrière les ressources de l'hôte, même ajoutées ensuite.
-        if (fallback.ThemeDictionaries.Count > 0) app.Resources.MergedDictionaries.Insert(0, fallback);
+        // Les styles sont consultés en dernier, en ordre inverse : le thème de l'hôte reste prioritaire.
+        if (fallback.ThemeDictionaries.Count > 0) app.Styles.Insert(0, new Styles { Resources = fallback });
     }
 }

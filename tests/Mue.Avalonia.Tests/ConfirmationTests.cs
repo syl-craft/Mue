@@ -1,5 +1,7 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
+using Avalonia.VisualTree;
 
 namespace Mue.Avalonia.Tests;
 
@@ -159,21 +161,54 @@ public sealed class ConfirmationTests
     }
 
     [AvaloniaTheory]
-    [InlineData(UpdateBlockerCloseResult.Closed)]
-    [InlineData(UpdateBlockerCloseResult.StillRunning)]
-    [InlineData(UpdateBlockerCloseResult.AccessDenied)]
-    [InlineData(UpdateBlockerCloseResult.Gone)]
-    [InlineData(UpdateBlockerCloseResult.IdentityChanged)]
-    public async Task EveryCloseResultIsDisplayed(UpdateBlockerCloseResult result)
+    [InlineData("fr-FR", 440, 360)]
+    [InlineData("en-US", 440, 360)]
+    [InlineData("fr-FR", 560, 480)]
+    [InlineData("en-US", 560, 480)]
+    public async Task ForceWarningStaysInsideWindowAtBothScrollExtremes(string language, int width, int height)
     {
-        var host = new TestHost { Blockers = [Fixtures.Blocker()], CloseOverride = (_, _) => Task.FromResult(result) };
-        var dialog = new UpdateBlockersDialog(UpdateBlockerQuery.ForDirectory(Path.GetTempPath()), host.Blockers, host, UpdateShutdownBehavior.Refuse);
-        dialog.Show();
-        await dialog.CloseSelectedAsync();
-        var results = Fixtures.Control<StackPanel>(dialog, "CloseResults");
-        Assert.True(results.IsVisible);
-        Assert.Contains(BlockerTexts.CloseResult(result), Assert.IsType<TextBlock>(Assert.Single(results.Children)).Text);
-        Assert.Equal(5, Enum.GetValues<UpdateBlockerCloseResult>().Select(BlockerTexts.CloseResult).Distinct().Count());
-        dialog.Close();
+        var culture = System.Globalization.CultureInfo.CurrentUICulture;
+        System.Globalization.CultureInfo.CurrentUICulture = System.Globalization.CultureInfo.GetCultureInfo(language);
+        UpdateTexts.Configure(null);
+        var host = new TestHost { Blockers = Enumerable.Range(1, 20).Select(pid => Fixtures.Blocker(pid: pid)).ToArray() };
+        var dialog = new UpdateBlockersDialog(UpdateBlockerQuery.ForDirectory(Path.GetTempPath()), host.Blockers, host, UpdateShutdownBehavior.Kill)
+        { Width = width, Height = height };
+        try
+        {
+            dialog.Show();
+            await dialog.CloseSelectedAsync();
+            var warning = Fixtures.Control<Border>(dialog, "ForceWarning");
+            var scroll = Fixtures.Control<ScrollViewer>(dialog, "DetailsScroll");
+            var button = Fixtures.Control<Button>(dialog, "CloseButton");
+            Assert.True(warning.IsVisible);
+            Assert.True(button.IsEnabled);
+            Assert.Equal(UpdateTexts.T("Update_ForceInstall"), button.Content);
+            Assert.Equal(UpdateTexts.T("Update_ForceRisk"), Assert.IsType<TextBlock>(warning.Child).Text);
+            Assert.DoesNotContain(warning.GetVisualAncestors(), ancestor => ancestor is ScrollViewer);
+            dialog.UpdateLayout();
+            Assert.True(scroll.Extent.Height > scroll.Viewport.Height);
+            global::Avalonia.Point? firstPosition = null;
+            foreach (var atEnd in new[] { false, true })
+            {
+                if (atEnd) scroll.ScrollToEnd();
+                else scroll.ScrollToHome();
+                dialog.UpdateLayout();
+                var origin = warning.TranslatePoint(default, dialog) ?? throw new InvalidOperationException();
+                var buttonOrigin = button.TranslatePoint(default, dialog) ?? throw new InvalidOperationException();
+                Assert.True(warning.Bounds.Height > 0);
+                Assert.InRange(origin.X, 0, width - warning.Bounds.Width);
+                Assert.InRange(origin.Y, 0, height - warning.Bounds.Height);
+                Assert.True(origin.Y + warning.Bounds.Height <= buttonOrigin.Y);
+                Assert.True(scroll.Bounds.Bottom <= origin.Y);
+                if (firstPosition != null) Assert.Equal(firstPosition.Value, origin);
+                firstPosition = origin;
+            }
+        }
+        finally
+        {
+            dialog.Close();
+            System.Globalization.CultureInfo.CurrentUICulture = culture;
+            UpdateTexts.Configure(null);
+        }
     }
 }
