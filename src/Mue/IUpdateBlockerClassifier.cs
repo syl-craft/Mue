@@ -2,7 +2,7 @@ using System.IO;
 
 namespace Mue;
 
-public sealed record UpdateBlockerContext(string Image, string Directory, string? CommandLine,
+public sealed record UpdateBlockerContext(string Image, UpdateBlockerQuery Query, string? CommandLine,
     string? ParentName, string? ParentPath, string? GrandparentName = null, string? GrandparentPath = null);
 
 public sealed record UpdateBlockerClassification(bool IsRelay, string? Program);
@@ -10,12 +10,12 @@ public sealed record UpdateBlockerClassification(bool IsRelay, string? Program);
 public interface IUpdateBlockerClassifier
 {
     UpdateBlockerClassification Classify(UpdateBlockerContext context);
-    bool IsIgnored(string? image, string directory);
+    bool IsIgnored(string? image, UpdateBlockerQuery query);
 }
 
 public sealed class ProgramClassifier : IUpdateBlockerClassifier
 {
     public UpdateBlockerClassification Classify(UpdateBlockerContext context) =>
         new(false, Path.GetFileNameWithoutExtension(context.Image));
-    public bool IsIgnored(string? image, string directory) => false;
+    public bool IsIgnored(string? image, UpdateBlockerQuery query) => false;
 }

@@ -1,5 +1,20 @@
 # Historique
 
+## 0.2.0 — 2026-11-06
+
+- `ForcesShutdown` est remplacé par `ShutdownBehavior` : `Refuse`, `AskToQuit`, `Kill`.
+- Textes fr/en intégrés et repli par clé ; `IUpdateTexts.TryGet` indique les traductions fournies par l'hôte.
+- `IUpdatePendingStore`, stockage atomique `FileUpdatePendingStore` et `VerifyLaunch` pour constater succès ou retour arrière.
+- `BlockerQuery` accepte plusieurs fichiers et dossiers ; `Find` retourne `UpdateBlockerScan`. Le classifieur reçoit la requête.
+- Inspection Windows en accès limité, processus illisibles signalés par Restart Manager conservés avec `Unavailable`.
+- `CloseAsync` accepte un jeton et retourne `UpdateBlockerCloseResult`, avec contrôle d'identité avant chaque arrêt.
+- `IUpdateDialogHost.CheckAsync` vérifie sans préparer ; `PrepareAsync` ne s'exécute qu'une fois, après résolution des bloqueurs.
+  Le résumé de vérification apparaît dans les deux dialogues ; absent, il n'occupe aucune place.
+- `IUpdateBackend.CheckAsync` reçoit un jeton. Les recherches automatiques s'annulent lorsque la permission ou la préférence disparaît.
+- Backend Velopack : requêtes annulables, `UserAgent`, option `LatestReleaseOnly` désactivée par défaut.
+- `MueStyleKeys`, défauts de thème ajoutés explicitement avec `MueStyles.AddMissingDefaults`, contrôle autonome `UpdateBadge`.
+- Tests de processus réels catégorisés `RealMachine` ; `pack.ps1 -Version` permet les préversions sans modifier le contrat publié.
+
 ## 0.1.0 — 2026-11-06
 
 - Extraction du moteur de mise à jour de DockPad, de ses contrats d'hôte et de ses tests génériques.

@@ -48,6 +48,7 @@
             <TextBlock x:Name="StateLabel" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextLabel}" Margin="0,0,0,6"/>
             <TextBlock x:Name="Heading" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap"/>
             <TextBlock x:Name="HelpText" TextWrapping="Wrap" Margin="0,10,0,0"/>
+            <TextBlock x:Name="PreparationSummary" TextWrapping="Wrap" Margin="0,10,0,0" Visibility="Collapsed"/>
             <TextBlock x:Name="ErrorText" TextWrapping="Wrap" Foreground="{DynamicResource Brush.Danger}" Margin="0,8,0,0" AutomationProperties.LiveSetting="Polite"/>
         </StackPanel>
         <Grid Grid.Row="1" Margin="20,0,20,14">

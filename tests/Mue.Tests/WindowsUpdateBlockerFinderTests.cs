@@ -22,9 +22,10 @@ public class WindowsUpdateBlockerFinderTests
     }
 
     [Fact]
+    [Trait("Category", "RealMachine")]
     public async Task ReusedPidIsNeverClosed()
     {
         // Even force=true must not touch the current test process for a stale PID identity.
-        Assert.True(await new WindowsUpdateBlockerFinder().CloseAsync(new UpdateBlocker { Pid = Environment.ProcessId, Started = 0 }, force: true));
+        Assert.True(await new WindowsUpdateBlockerFinder().CloseAsync(new UpdateBlocker { Pid = Environment.ProcessId, Started = 0 }, force: true) == UpdateBlockerCloseResult.IdentityChanged);
     }
 }

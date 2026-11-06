@@ -18,7 +18,7 @@ et la fermeture passent par IUpdateBlockerFinder.
 
 ## Intégration par un hôte
 
-Configurer les textes avant de créer un modèle ou une fenêtre :
+Les textes anglais et français sont intégrés. Configurer un fournisseur est facultatif :
 
 ```csharp
 UpdateTexts.Configure(new HostUpdateTexts());
@@ -28,6 +28,7 @@ var service = new UpdateService(backend, new UpdateServiceOptions
     Schedule = schedule,
     CanSearch = () => true,
     Time = TimeProvider.System,
+    PendingStore = new FileUpdatePendingStore(profilePendingPath),
 });
 var dialog = new Mue.Wpf.UpdatesDialog(service, dialogHost);
 dialog.ShowDialog();
@@ -36,9 +37,9 @@ dialog.ShowDialog();
 Les noms HostUpdateTexts, backend, log, schedule et dialogHost représentent les implémentations
 de l'hôte. Celui-ci fournit :
 
-- **IUpdateTexts** : traduction T, formatage F, culture Formatting et événement LanguageChanged.
-  UpdateTexts n'a aucun fournisseur par défaut : un accès avant Configure lève une exception explicite.
-  Fournir les clés Update_* dans les ressources de l'hôte, avec leurs arguments et règles de pluriel.
+- **IUpdateTexts** : `TryGet` indique les clés connues ; `T`, `F`, `Formatting` et `LanguageChanged` gardent leur rôle.
+  Les clés inconnues retombent sur les ressources de Mue selon `CurrentUICulture`. `Configure(null)` rétablit les textes intégrés.
+  Les ressources françaises voyagent dans les assemblies satellites des paquets ; SmartFormat porte les pluriels.
 - **IUpdateLog** : journalisation des erreurs. SilentUpdateLog convient à un hôte sans journal.
 - **IUpdateSchedule** : préférence Automatic, dernière recherche et persistance de RecordCheck.
   MemoryUpdateSchedule convient aux fixtures.
@@ -46,7 +47,7 @@ de l'hôte. Celui-ci fournit :
   Mue.Velopack fournit VelopackBackend ; FakeUpdateBackend permet les essais sans réseau.
 - **IUpdateBlockerClassifier** : identification des relais et exclusions propres à l'application.
   ProgramClassifier traite les processus comme des programmes ordinaires.
-- **IUpdateDialogHost** : préparation, transfert avant application, reprise en cas d'échec,
+- **IUpdateDialogHost** : vérification sans effet de bord (`CheckAsync`), préparation (`PrepareAsync`), transfert avant application, reprise en cas d'échec,
   sortie, erreurs, liens de release, journal, classificateur et IUpdateBlockerFinder.
   Le propriétaire est un object ; le contrat ne dépend pas de WPF.
 
@@ -54,9 +55,35 @@ L'hôte résident appelle StartPolling puis Dispose à l'arrêt. La recherche co
 20 secondes, réévalue toutes les 15 minutes la permission et la préférence, et respecte six heures
 entre recherches. Aucun téléchargement ne déclenche à lui seul l'application de la mise à jour.
 
-ForcesShutdown vaut true par défaut pour le backend Velopack standard. Ne le mettre à false
-que si le moteur natif garantit effectivement l'absence de fermeture forcée. DockPad fournit
-ses propres binaires adaptés à **Velopack 1.2.161** : ne pas monter cette dépendance implicitement.
+`ShutdownBehavior` décrit le comportement de l'installeur : `Refuse` refuse les programmes
+encore ouverts, `AskToQuit` leur demande de quitter, `Kill` les arrête. Le backend Velopack
+choisit `AskToQuit` sur macOS, `Kill` ailleurs. DockPad choisit `Refuse` pour ses binaires
+adaptés à **Velopack 1.2.161** : ne pas monter cette dépendance implicitement.
+
+`CheckAsync(owner, token)` retourne `UpdatePreparationCheck(CanContinue, Summary)` sans fermer
+ni libérer de session. Après téléchargement : vérification, recherche des bloqueurs, dialogue
+si nécessaire, contrôle final sans enrichissement, puis une seule préparation, `BeforeApply`,
+`Apply`, `ExitAfterApply`. Reporter ou fermer le dialogue des bloqueurs ne prépare pas l'hôte.
+Le résumé facultatif apparaît dans les deux fenêtres ; nul, son emplacement reste replié.
+
+`Apply` écrit la version attendue avant de lancer le backend et la retire si celui-ci lève.
+Au démarrage résident, appeler `service.VerifyLaunch()` une fois : `None`, `Succeeded` ou
+`RolledBack`, avec versions attendue et courante. Le marqueur est consommé. Seule l'égalité
+textuelle, sans préfixe `v`, est examinée. Le stockage par défaut est en mémoire ; utiliser
+`FileUpdatePendingStore` dans le profil pour traverser les redémarrages.
+
+`BlockerQuery` contient les chemins à examiner (dossiers ou fichiers), et exclut le processus
+courant sauf `IncludeCurrentProcess`. `Find(query, classifier, enrich)` retourne un
+`UpdateBlockerScan` ; une détection en échec lève. `Incomplete` signale au moins un processus
+`Unavailable`, gardé lorsqu'il est signalé par Restart Manager mais reste illisible. Son
+arrêt retourne `AccessDenied`. `CloseAsync` retourne `Closed`, `StillRunning`, `AccessDenied`,
+`Gone` ou `IdentityChanged`, avec contrôle PID/date à chaque tentative.
+
+Les recherches reçoivent un jeton annulé par `Dispose`. Une recherche automatique est aussi
+annulée à la désactivation, ou au cycle suivant si `CanSearch` devient faux. L'annulation
+n'affiche pas d'erreur. `VelopackBackendOptions.UserAgent` vaut `Mue` par défaut ;
+`LatestReleaseOnly = true` limite GitHub à `/releases/latest`, sans repli vers une autre release.
+Cette option vaut `false` par défaut, notamment pour DockPad.
 
 UpdatesDialog n'a pas de constructeur sans paramètre : la fabrique appartient à l'hôte.
 L'extension XAML `{mue:T Clé}` crée une liaison OneWay vers un indexeur singleton, actualisé sur
@@ -78,12 +105,27 @@ Brush.TextSmall           Brush.TextSubtle         Brush.Separator
 Brush.Border              Brush.Accent             Brush.AccentText
 Brush.AccentTint          Brush.AccentSelected     Brush.AccentBorderSoft
 Brush.Danger              Brush.DangerSurface      Brush.DangerBorder
-Brush.WarnTextAlt
+Brush.WarnTextAlt         Brush.TextDisabled       Brush.AccentTintStrong
 ```
 
 Les références dynamiques suivent les remplacements de ressources de l'hôte. Ses styles
 implicites de contrôles (case à cocher, barre de progression, etc.) s'appliquent aussi.
 BoolToVisibilityConverter est déclaré dans UpdatesDialog : l'hôte n'a pas à fournir cette clé.
+
+`MueStyleKeys.Required` énumère le contrat exact et `MueStyleKeys.Missing(app.TryFindResource)`
+permet de le tester. Un hôte sans thème peut appeler `MueStyles.AddMissingDefaults(app)` :
+seules les clés absentes sont ajoutées aux ressources de l'application. Aucun dictionnaire
+n'est fusionné dans les fenêtres. DockPad conserve entièrement ses palettes.
+
+`UpdateBadge` est un bouton autonome, sans barre imposée : `VersionIndicator`, `Status`,
+`HasRelease`, `Command` et événement `Click`. Sa cible transparente mesure 40 px de haut et sa
+pastille 26 px ; les brosses dynamiques suivent le thème de l'hôte.
+
+```xml
+<mue:UpdateBadge VersionIndicator="{Binding Updates.VersionIndicator}"
+                 Status="{Binding Updates.Status}" HasRelease="{Binding Updates.HasRelease}"
+                 Command="{Binding OpenUpdates}" />
+```
 
 ## Publication locale
 
@@ -92,6 +134,7 @@ Installer les SDK .NET 8 et .NET 10 et le support WPF sur Windows, puis exécute
 ```powershell
 ./pack.ps1
 ./pack.ps1 -Feed C:\mon-flux-nuget
+./pack.ps1 -Feed C:\mon-flux-nuget -Version 0.2.0-b2.1 -SkipTests
 ```
 
 Le script compile et teste la solution, puis empaquette les trois projets en Release avec -m:4.
@@ -112,5 +155,12 @@ local absolu dans un nuget.config versionné.
 (ou NUGET_PACKAGES) : remplacer un .nupkg ne met pas à jour les consommateurs déjà restaurés.
 Augmenter Version dans Directory.Build.props et mettre à jour le changelog avant une nouvelle
 publication. Le script refuse d'écraser une version présente dans le flux.
+
+## Tests
+
+`dotnet build Mue.sln -m:4` puis `dotnet test Mue.sln -m:4 --filter "Category!=RealMachine"`.
+Les tests `RealMachine` consultent les vrais processus et Restart Manager ; les exécuter sur
+une machine Windows hors bac à sable avec `--filter "Category=RealMachine"`. Ils ne sont pas
+désactivés. Les tests HTTP utilisent des réponses simulées, sans accès réseau.
 
 Licence MIT, syl-craft.

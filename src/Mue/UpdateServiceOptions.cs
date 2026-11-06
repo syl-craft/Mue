@@ -26,6 +26,7 @@ public sealed class MemoryUpdateSchedule : IUpdateSchedule
 
 public sealed record UpdateServiceOptions
 {
+    public IUpdatePendingStore PendingStore { get; init; } = new MemoryUpdatePendingStore();
     public IUpdateLog Log { get; init; } = new SilentUpdateLog();
     public IUpdateSchedule Schedule { get; init; } = new MemoryUpdateSchedule();
     public Func<bool> CanSearch { get; init; } = () => true;

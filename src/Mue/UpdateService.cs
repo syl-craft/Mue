@@ -5,14 +5,16 @@ using System.Threading.Tasks;
 namespace Mue;
 
 public enum UpdateState { Unavailable, Idle, Checking, Available, Downloading, Ready, Preparing, Installing, Failed }
+public enum UpdateShutdownBehavior { Refuse, AskToQuit, Kill }
 
 public interface IUpdateBackend
 {
-    bool ForcesShutdown => true;
+    UpdateShutdownBehavior ShutdownBehavior => UpdateShutdownBehavior.Kill;
     bool IsInstalled { get; }
     string CurrentVersion { get; }
     string ContentDirectory { get; }
-    Task<UpdateRelease?> CheckAsync();
+    UpdateBlockerQuery BlockerQuery => UpdateBlockerQuery.ForDirectory(ContentDirectory);
+    Task<UpdateRelease?> CheckAsync(CancellationToken token);
     Task DownloadAsync(UpdateRelease release, Action<int> progress, CancellationToken token);
     void Apply(UpdateRelease release);
 }
@@ -28,6 +30,8 @@ public sealed class UpdateService : INotifyPropertyChanged, IDisposable
     private readonly UpdateServiceOptions _options;
     private readonly CancellationTokenSource _lifetime = new();
     private CancellationTokenSource? _download;
+    private CancellationTokenSource? _search;
+    private bool _automaticSearch;
     private Task? _polling;
     private bool _checked;
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -77,11 +81,17 @@ public sealed class UpdateService : INotifyPropertyChanged, IDisposable
         return UpdateTexts.F("Update_CheckedDays", (int)age.TotalDays);
     }
     public string ContentDirectory => _backend.ContentDirectory;
-    public bool ForcesShutdown => _backend.ForcesShutdown;
+    public UpdateShutdownBehavior ShutdownBehavior => _backend.ShutdownBehavior;
+    public UpdateBlockerQuery BlockerQuery => _backend.BlockerQuery;
     public bool Automatic
     {
         get => _options.Schedule.Automatic;
-        set { _options.Schedule.Automatic = value; Notify(); }
+        set
+        {
+            _options.Schedule.Automatic = value;
+            if (!value && _automaticSearch) _search?.Cancel();
+            Notify();
+        }
     }
     public string Status => State switch
     {
@@ -104,19 +114,29 @@ public sealed class UpdateService : INotifyPropertyChanged, IDisposable
     }
     private void LanguageChanged(object? sender, EventArgs e) => Notify();
     private void Notify() => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(null));
-    public async Task CheckAsync()
+    public Task CheckAsync() => CheckAsync(automatic: false);
+    private async Task CheckAsync(bool automatic)
     {
         if (!_options.CanSearch() || !CanCheck || State == UpdateState.Ready) return;
+        using var search = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+        _search = search;
+        _automaticSearch = automatic;
+        var previousState = State;
         State = UpdateState.Checking; Notify();
         try
         {
             _options.Schedule.RecordCheck(_options.Time.GetUtcNow());
-            Release = await Task.Run(_backend.CheckAsync);
+            var release = automatic ? await _backend.CheckAsync(search.Token)
+                : await Task.Run(() => _backend.CheckAsync(search.Token));
+            search.Token.ThrowIfCancellationRequested();
+            Release = release;
             ParsedNotes = UpdateNotes.Parse(Release?.Notes ?? "");
             _checked = true;
             State = Release is null ? UpdateState.Idle : UpdateState.Available;
         }
+        catch (OperationCanceledException) when (search.IsCancellationRequested) { State = previousState; }
         catch (Exception ex) { _options.Log.Warn(ex, "Update check failed"); State = UpdateState.Failed; }
+        finally { _search = null; _automaticSearch = false; }
         Notify();
     }
     public async Task<bool> DownloadAsync()
@@ -167,9 +187,30 @@ public sealed class UpdateService : INotifyPropertyChanged, IDisposable
     {
         if (State is not (UpdateState.Ready or UpdateState.Preparing) || Release is null)
             throw new InvalidOperationException("Update is not ready");
-        try { _backend.Apply(Release); State = UpdateState.Installing; }
-        catch { State = UpdateState.Ready; Notify(); throw; }
+        try
+        {
+            _options.PendingStore.ExpectedVersion = Release.Version;
+            _backend.Apply(Release);
+            State = UpdateState.Installing;
+        }
+        catch
+        {
+            State = UpdateState.Ready;
+            _options.PendingStore.ExpectedVersion = null;
+            Notify();
+            throw;
+        }
         Notify();
+    }
+    public UpdateLaunchOutcome VerifyLaunch()
+    {
+        var expected = _options.PendingStore.ExpectedVersion;
+        var current = CurrentVersion;
+        if (expected == null) return new(UpdateLaunchResult.None, null, current);
+        _options.PendingStore.ExpectedVersion = null;
+        var result = expected.TrimStart('v') == current.TrimStart('v')
+            ? UpdateLaunchResult.Succeeded : UpdateLaunchResult.RolledBack;
+        return new(result, expected, current);
     }
     public void StartPolling() => _polling ??= PollAsync();
     private async Task PollAsync()
@@ -179,12 +220,14 @@ public sealed class UpdateService : INotifyPropertyChanged, IDisposable
             await Task.Delay(TimeSpan.FromSeconds(20), _options.Time, _lifetime.Token);
             while (!_lifetime.IsCancellationRequested)
             {
-                if (_options.CanSearch() && Automatic && CanCheck)
+                var allowed = _options.CanSearch() && Automatic;
+                if (!allowed && _automaticSearch) _search?.Cancel();
+                if (allowed && CanCheck)
                 {
                     var now = _options.Time.GetUtcNow();
                     if (now - _options.Schedule.LastCheck >= TimeSpan.FromHours(6))
                     {
-                        await CheckAsync();
+                        _ = CheckAsync(automatic: true);
                     }
                 }
                 await Task.Delay(TimeSpan.FromMinutes(15), _options.Time, _lifetime.Token);
