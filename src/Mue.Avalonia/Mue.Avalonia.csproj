@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+    <NoWarn>$(NoWarn);AVLN3001</NoWarn>
+    <Description>Fenêtres et indicateur de mise à jour Mue pour Avalonia.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="[12.1.4]" />
+    <ProjectReference Include="../Mue/Mue.csproj" />
+    <InternalsVisibleTo Include="Mue.Avalonia.Tests" />
+  </ItemGroup>
+</Project>

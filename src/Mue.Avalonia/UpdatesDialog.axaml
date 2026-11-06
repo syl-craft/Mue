@@ -1,0 +1,64 @@
+<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:core="clr-namespace:Mue;assembly=Mue" x:DataType="core:UpdateService" xmlns:mue="using:Mue.Avalonia" x:Class="Mue.Avalonia.UpdatesDialog"
+        Title="{mue:T Update_Title}" Width="560" Height="480" MinWidth="440" MinHeight="360"
+        WindowStartupLocation="CenterOwner" Background="{DynamicResource Brush.Surface}"
+        Foreground="{DynamicResource Brush.Text}" FontSize="13">
+  <Grid RowDefinitions="Auto,*,Auto,Auto">
+    <StackPanel Margin="20,16,20,10" Spacing="6">
+      <TextBlock Name="StateLabel" Text="{Binding StateLabel}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextLabel}"/>
+      <TextBlock Text="{Binding Heading}" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap"/>
+      <DockPanel Margin="0,4,0,0" LastChildFill="True">
+        <Button DockPanel.Dock="Right" Content="{mue:T Update_GitHub}" Theme="{DynamicResource SecondaryButton}"
+                Click="GitHub_Click" FontSize="12" Padding="6,3" Margin="8,0,0,0"/>
+        <WrapPanel VerticalAlignment="Center">
+          <Border Background="{DynamicResource Brush.SurfaceMuted}" CornerRadius="10" Padding="8,2">
+            <TextBlock Text="{Binding CurrentVersion}" FontFamily="Consolas" Foreground="{DynamicResource Brush.TextLabel}"/>
+          </Border>
+          <StackPanel Orientation="Horizontal" IsVisible="{Binding HasRelease}">
+            <TextBlock Text="→" Margin="8,0" VerticalAlignment="Center" Foreground="{DynamicResource Brush.TextDetail}"/>
+            <Border Background="{DynamicResource Brush.AccentSelected}" CornerRadius="10" Padding="8,2">
+              <TextBlock Text="{Binding NewVersion}" FontFamily="Consolas" FontWeight="SemiBold" Foreground="{DynamicResource Brush.AccentText}"/>
+            </Border>
+          </StackPanel>
+          <TextBlock Text="{Binding ReleaseMetadata}" Margin="8,2,0,0" Foreground="{DynamicResource Brush.TextSubtle}" TextWrapping="Wrap"/>
+        </WrapPanel>
+      </DockPanel>
+      <Border Name="StatusBanner" Margin="0,4,0,0" Padding="12,8" CornerRadius="6" BorderThickness="1"
+              Background="{DynamicResource Brush.SurfaceCard}" BorderBrush="{DynamicResource Brush.Border}">
+        <TextBlock Text="{Binding Status}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"/>
+      </Border>
+      <StackPanel IsVisible="{Binding ShowsProgress}" Spacing="4">
+        <ProgressBar Height="4" Minimum="0" Maximum="100" Value="{Binding Progress}"
+                     Foreground="{DynamicResource Brush.Accent}" Background="{DynamicResource Brush.Border}"
+                     IsIndeterminate="{Binding IsIndeterminate}" AutomationProperties.Name="{mue:T Update_Progress}"/>
+        <TextBlock IsVisible="{Binding IsDownloading}" Text="{Binding DownloadSize}" FontSize="12" Foreground="{DynamicResource Brush.TextLabel}"/>
+      </StackPanel>
+    </StackPanel>
+    <Border Grid.Row="1" Margin="20,0,20,10" Padding="12,8" CornerRadius="6" IsVisible="{Binding HasRelease}"
+            Background="{DynamicResource Brush.SurfaceCard}" BorderBrush="{DynamicResource Brush.Border}" BorderThickness="1">
+      <Grid RowDefinitions="Auto,*">
+        <TextBlock Text="{mue:T Update_Notes}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextLabel}" Margin="0,0,0,6"/>
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+          <StackPanel Name="NotesBlocks"/>
+        </ScrollViewer>
+      </Grid>
+    </Border>
+    <TextBlock Name="PreparationSummary" Grid.Row="2" IsVisible="False" TextWrapping="Wrap" Margin="20,0,20,10"
+               AutomationProperties.LiveSetting="Polite"/>
+    <Border Grid.Row="3" Name="Footer" Theme="{DynamicResource DialogFooter}" Padding="20,10">
+      <StackPanel Spacing="8">
+        <Grid ColumnDefinitions="*,Auto">
+          <CheckBox Name="Automatic" Content="{mue:T Update_Automatic}" IsChecked="{Binding Automatic, Mode=TwoWay}" FontSize="12" MinHeight="24"/>
+          <TextBlock Name="LastChecked" Grid.Column="1" Text="{Binding LastChecked}" FontSize="11"
+                     Foreground="{DynamicResource Brush.TextSubtle}" VerticalAlignment="Center" Margin="8,0,0,0"/>
+        </Grid>
+        <WrapPanel HorizontalAlignment="Right">
+          <Button Name="SecondaryButton" Content="{Binding SecondaryLabel}" Theme="{DynamicResource SecondaryButton}"
+                  IsEnabled="{Binding SecondaryEnabled}" Click="Secondary_Click" Margin="0,0,8,0"/>
+          <Button Name="InstallButton" Content="{Binding PrimaryLabel}" Theme="{DynamicResource PrimaryButton}"
+                  IsEnabled="{Binding PrimaryEnabled}" Click="Primary_Click"/>
+        </WrapPanel>
+      </StackPanel>
+    </Border>
+  </Grid>
+</Window>

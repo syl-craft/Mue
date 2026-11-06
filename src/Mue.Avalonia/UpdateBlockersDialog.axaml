@@ -1,0 +1,38 @@
+<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:mue="using:Mue.Avalonia" x:Class="Mue.Avalonia.UpdateBlockersDialog"
+        Title="{mue:T Update_BlockedTitle}" Width="560" Height="480" MinWidth="440" MinHeight="360"
+        WindowStartupLocation="CenterOwner" Background="{DynamicResource Brush.Surface}" Foreground="{DynamicResource Brush.Text}" FontSize="13">
+  <Grid RowDefinitions="*,Auto">
+    <ScrollViewer Name="DetailsScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+      <StackPanel Margin="20,16,20,12" Spacing="8">
+        <TextBlock Name="StateLabel" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextLabel}"/>
+        <TextBlock Name="Heading" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap"/>
+        <TextBlock Name="HelpText" TextWrapping="Wrap"/>
+        <TextBlock Name="PreparationSummary" IsVisible="False" TextWrapping="Wrap"/>
+        <TextBlock Name="DetectionWarning" IsVisible="False" TextWrapping="Wrap" Foreground="{DynamicResource Brush.WarnTextAlt}" AutomationProperties.LiveSetting="Polite"/>
+        <TextBlock Name="ErrorText" IsVisible="False" TextWrapping="Wrap" Foreground="{DynamicResource Brush.Danger}" AutomationProperties.LiveSetting="Polite"/>
+        <StackPanel Name="CloseResults" IsVisible="False" Spacing="4" AutomationProperties.LiveSetting="Polite"/>
+        <Border Name="RemainingCard" Background="{DynamicResource Brush.SurfaceCard}" BorderBrush="{DynamicResource Brush.Border}"
+                BorderThickness="1" CornerRadius="6" Padding="12,6" IsVisible="False">
+          <StackPanel Name="RemainingProcesses"/>
+        </Border>
+        <TextBlock Name="OtherHeading" Text="{mue:T Update_OtherPrograms}" IsVisible="False" FontSize="11"
+                   FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextLabel}"/>
+        <StackPanel Name="Processes" Spacing="8" AutomationProperties.Name="{mue:T Update_BlockedTitle}"/>
+        <Border Name="ForceWarning" Background="{DynamicResource Brush.DangerSurface}" BorderBrush="{DynamicResource Brush.DangerBorder}"
+                BorderThickness="1" CornerRadius="6" Padding="12,10" IsVisible="False">
+          <TextBlock Text="{mue:T Update_ForceRisk}" TextWrapping="Wrap"/>
+        </Border>
+      </StackPanel>
+    </ScrollViewer>
+    <Border Grid.Row="1" Name="Footer" Theme="{DynamicResource DialogFooter}" Padding="20,10">
+      <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto">
+        <Button Name="PostponeButton" Content="{mue:T Update_Postpone}" Theme="{DynamicResource SecondaryButton}"
+                Click="Postpone_Click" IsCancel="True" HorizontalAlignment="Left"/>
+        <Button Name="RetryButton" Grid.Column="1" Content="{mue:T Update_Retry}" Theme="{DynamicResource SecondaryButton}" Click="Retry_Click"/>
+        <Button Name="CloseButton" Grid.Row="1" Grid.ColumnSpan="2" HorizontalAlignment="Right" Margin="0,8,0,0"
+                Theme="{DynamicResource PrimaryButton}" Click="CloseSelected_Click"/>
+      </Grid>
+    </Border>
+  </Grid>
+</Window>

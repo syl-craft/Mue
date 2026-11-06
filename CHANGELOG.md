@@ -1,5 +1,12 @@
 # Historique
 
+## Non publié — T2 Avalonia
+
+- Projet `Mue.Avalonia` en Avalonia 12.1.4 pour .NET 8 et .NET 10 : fenêtres de mise à jour et de bloqueurs, indicateur autonome 40/26 px.
+- Flux de confirmation, résultats de fermeture, ressources dynamiques et repli clair/sombre de faible priorité.
+- Tests headless et captures des états dans `artifacts/avalonia/` ; ajout à la solution et au script d'empaquetage.
+- Validation T2 partielle : textes absents du contrat 0.2.0 recensés dans `docs/t2-avalonia.md`, sans modification du cœur ni de WPF.
+
 ## 0.2.0 — 2026-11-06
 
 - `ForcesShutdown` est remplacé par `ShutdownBehavior` : `Refuse`, `AskToQuit`, `Kill`.

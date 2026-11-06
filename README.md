@@ -10,6 +10,7 @@ indépendants des choix de l'application hôte. Rien ne s'installe automatiqueme
 | Mue | net8.0, net10.0 | États, recherche, téléchargement, notes, contrats et blocages |
 | Mue.Velopack | net8.0, net10.0 | Backend et chemins Velopack ; dépendance exacte **1.2.161** |
 | Mue.Wpf | net8.0-windows, net10.0-windows | UpdatesDialog, UpdateBlockersDialog et traduction XAML |
+| Mue.Avalonia | net8.0, net10.0 | Port Avalonia 12.1.4 des dialogues et UpdateBadge (T2 en cours de validation) |
 
 Le cœur ne référence ni WPF ni Velopack et ne cible pas Windows. Seul
 WindowsUpdateBlockerFinder est réservé à Windows, avec System.Management 8.0.0 et les appels
@@ -129,6 +130,35 @@ pastille 26 px ; les brosses dynamiques suivent le thème de l'hôte.
 
 ## Publication locale
 
+## Intégration Avalonia
+
+Après les ressources et le thème de l'hôte, appeler explicitement
+`Mue.Avalonia.MueStyles.AddMissingDefaults(app)` au démarrage. Les clés sont les mêmes que
+`Mue.Wpf.MueStyleKeys.Required` ; les trois boutons et `DialogFooter` sont des `ControlTheme`
+Avalonia ciblant respectivement `Button` et `Border`. Le repli clair/sombre ne fournit que les
+clés absentes, dans le premier dictionnaire fusionné, derrière les ressources de l'hôte.
+Les fenêtres ne fusionnent aucun dictionnaire et utilisent `DynamicResource`.
+
+```csharp
+var dialog = new Mue.Avalonia.UpdatesDialog(service, dialogHost);
+await dialog.ShowDialog(owner);
+```
+
+`dialogHost` implémente le contrat générique `IUpdateDialogHost` ; les propriétaires reçus
+sont des `Avalonia.Controls.Window`. Le thème de contrôles de l'hôte (Fluent ou autre) reste
+responsable des cases à cocher et barres de progression. L'extension `{mue:T Clé}` suit
+`UpdateTexts.LanguageChanged` sur le thread d'interface. `UpdateBadge` expose les mêmes
+propriétés, `Command`, `CommandParameter` et `Click` que le contrôle WPF ; la cible est
+entièrement cliquable sur 40 px et la pastille mesure 26 px.
+
+Les tests `Mue.Avalonia.Tests` utilisent Skia et `Avalonia.Headless.XUnit` sur les deux cibles.
+Ils écrivent les captures dans `artifacts/avalonia/net8.0` et `artifacts/avalonia/net10.0`.
+Les limites du contrat 0.2.0 et la matrice de validation sont décrites dans
+[docs/t2-avalonia.md](docs/t2-avalonia.md). Les libellés manquants empêchent encore de valider
+la totalité de T2 ; aucun ajout au contrat n'a été effectué.
+
+## Publication locale
+
 Installer les SDK .NET 8 et .NET 10 et le support WPF sur Windows, puis exécuter :
 
 ```powershell
@@ -137,7 +167,7 @@ Installer les SDK .NET 8 et .NET 10 et le support WPF sur Windows, puis exécute
 ./pack.ps1 -Feed C:\mon-flux-nuget -Version 0.2.0-b2.1 -SkipTests
 ```
 
-Le script compile et teste la solution, puis empaquette les trois projets en Release avec -m:4.
+Le script compile et teste la solution, puis empaquette les quatre projets en Release avec -m:4.
 Le flux par défaut est C:\Users\Sylvain\nuget-local. Pour un projet consommateur, définir
 RestoreAdditionalProjectSources à partir d'une propriété MueFeed surchargeable :
 
