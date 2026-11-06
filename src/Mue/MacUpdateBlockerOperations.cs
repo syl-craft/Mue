@@ -1,46 +1,69 @@
 using System.ComponentModel;
-using System.Diagnostics;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace Mue;
 
 internal enum MacProcessState { Readable, Unavailable, Gone }
-internal enum MacCloseDecision { Signal, Closed, Refuse }
-internal sealed record MacProcessIdentity(int Pid, long Started, MacProcessState State, int Error = 0);
+internal enum MacCloseResult { Closed, Gone, IdentityChanged, StillRunning, AccessDenied }
+
+// audit_token_t : huit uint32_t, conservés tels que renvoyés par TASK_AUDIT_TOKEN.
+[StructLayout(LayoutKind.Sequential)]
+internal readonly record struct MacAuditToken(uint AuditUser, uint EffectiveUser, uint EffectiveGroup,
+    uint RealUser, uint RealGroup, uint Pid, uint Session, uint Version);
+
+internal sealed record MacProcessIdentity(int Pid, long Started, MacProcessState State, int Error = 0,
+    MacAuditToken? Token = null);
 internal sealed record MacProcessSnapshot(MacProcessIdentity Identity, string? Image);
+internal sealed record MacBlockerEntry(MacProcessSnapshot Process, UpdateBlocker? Blocker);
+internal sealed record MacBlockerScan(IReadOnlyList<MacBlockerEntry> Entries, bool Incomplete);
 
 internal interface IMacProcessAccess
 {
     IReadOnlyList<int> ListPids();
     MacProcessSnapshot ReadProcess(int pid);
     MacProcessIdentity ReadIdentity(int pid);
-    int SendSignal(int pid, int signal);
+    int SendSignal(MacAuditToken token, int signal);
+}
+
+// Frontière temporaire 0.1.0 : les informations complètes restent disponibles en interne.
+internal static class MacUpdateBlockerAdapter
+{
+    public static IReadOnlyList<UpdateBlocker> ToLegacy(MacBlockerScan scan) => scan.Entries
+        .Select(entry => entry.Blocker).OfType<UpdateBlocker>()
+        .OrderBy(blocker => blocker.Name).ThenBy(blocker => blocker.Pid).ToArray();
+
+    public static bool ToLegacy(MacCloseResult result) =>
+        result is MacCloseResult.Closed or MacCloseResult.Gone or MacCloseResult.IdentityChanged;
 }
 
 internal static class MacUpdateBlockerRules
 {
+    public static string ResolveBundlePath(string directory, Func<string, string> resolve)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(directory);
+        if (directory[0] != '/' || directory.Contains('\0')
+            || !directory.TrimEnd('/').EndsWith(".app", StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException("An absolute .app bundle path is required.", nameof(directory));
+        // realpath doit traverser les liens symboliques AVANT de traiter les segments « .. ».
+        return resolve(directory);
+    }
+
     public static bool IsWithinBundle(string? image, string directory)
     {
-        var bundle = NormalizePath(directory);
-        var executable = NormalizePath(image);
+        var bundle = NormalizeResolvedPath(directory);
+        var executable = NormalizeResolvedPath(image);
         return bundle != null && executable != null
             && executable.StartsWith(bundle + "/", StringComparison.Ordinal);
     }
 
-    public static string? NormalizePath(string? path)
+    private static string? NormalizeResolvedPath(string? path)
     {
         if (string.IsNullOrEmpty(path) || path[0] != '/' || path.Contains('\0')) return null;
-        var parts = new List<string>();
-        foreach (var part in path.Split('/', StringSplitOptions.RemoveEmptyEntries))
-        {
-            if (part == ".") continue;
-            if (part == "..")
-            {
-                if (parts.Count > 0) parts.RemoveAt(parts.Count - 1);
-                continue;
-            }
-            parts.Add(part);
-        }
-        return "/" + string.Join('/', parts);
+        var parts = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        // Les chemins natifs sont résolus ; un parent restant ne doit jamais être réduit lexicalement.
+        if (parts.Contains("..")) return null;
+        return "/" + string.Join('/', parts.Where(part => part != "."));
     }
 
     public static long ToFileTime(ulong seconds, ulong microseconds)
@@ -55,87 +78,128 @@ internal static class MacUpdateBlockerRules
         catch (ArgumentOutOfRangeException) { return 0; }
     }
 
-    public static MacCloseDecision DecideClose(UpdateBlocker blocker, MacProcessIdentity identity, int currentPid)
+    public static MacCloseResult? CheckIdentity(UpdateBlocker blocker, MacProcessIdentity identity,
+        MacAuditToken? detectedToken)
     {
-        if (blocker.Pid <= 0 || blocker.Pid == currentPid || blocker.Started <= 0 || identity.Pid != blocker.Pid)
-            return MacCloseDecision.Refuse;
-        if (identity.State == MacProcessState.Gone) return MacCloseDecision.Closed;
-        if (identity.State != MacProcessState.Readable || identity.Started <= 0) return MacCloseDecision.Refuse;
-        return UpdateBlockers.MatchesIdentity(blocker, identity.Started) ? MacCloseDecision.Signal : MacCloseDecision.Closed;
+        if (identity.Pid != blocker.Pid) return MacCloseResult.AccessDenied;
+        if (identity.State == MacProcessState.Gone) return MacCloseResult.Gone;
+        if (identity.State != MacProcessState.Readable || identity.Started <= 0) return MacCloseResult.AccessDenied;
+        if (!UpdateBlockers.MatchesIdentity(blocker, identity.Started)) return MacCloseResult.IdentityChanged;
+        if (detectedToken != null && identity.Token != null
+            && detectedToken.Value.Version != identity.Token.Value.Version) return MacCloseResult.IdentityChanged;
+        if (identity.Token == null || identity.Token.Value.Pid != blocker.Pid) return MacCloseResult.AccessDenied;
+        return null;
     }
 }
 
-internal sealed class MacUpdateBlockerOperations(IMacProcessAccess processes, IUpdateLog log,
-    int currentPid, TimeSpan exitTimeout)
+internal sealed class MacUpdateBlockerOperations
 {
-    public IReadOnlyList<UpdateBlocker> Find(string directory, IUpdateBlockerClassifier classifier, bool enrich)
+    private readonly IMacProcessAccess _processes;
+    private readonly IUpdateLog _log;
+    private readonly int _currentPid;
+    private readonly TimeSpan _exitTimeout;
+    private readonly TimeProvider _time;
+    private readonly ConditionalWeakTable<UpdateBlocker, MacProcessIdentity> _detectedIdentities = new();
+
+    public MacUpdateBlockerOperations(IMacProcessAccess processes, IUpdateLog log, int currentPid,
+        TimeSpan exitTimeout, TimeProvider? time = null)
+    {
+        if (exitTimeout < TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(exitTimeout));
+        _processes = processes;
+        _log = log;
+        _currentPid = currentPid;
+        _exitTimeout = exitTimeout;
+        _time = time ?? TimeProvider.System;
+    }
+
+    public MacBlockerScan Scan(string directory, IUpdateBlockerClassifier classifier, bool enrich)
     {
         ArgumentNullException.ThrowIfNull(classifier);
-        var results = new List<UpdateBlocker>();
-        foreach (var pid in processes.ListPids().Distinct())
+        var entries = new List<MacBlockerEntry>();
+        var incomplete = false;
+        foreach (var pid in _processes.ListPids().Distinct())
         {
-            if (pid <= 0 || pid == currentPid) continue;
-            var process = processes.ReadProcess(pid);
+            if (pid <= 0 || pid == _currentPid) continue;
+            var process = _processes.ReadProcess(pid);
             if (process.Identity.State == MacProcessState.Gone) continue;
-            if (process.Identity.State == MacProcessState.Unavailable || process.Image == null)
+            var unavailable = process.Identity.State != MacProcessState.Readable || process.Image == null
+                || process.Identity.Started <= 0 || process.Identity.Token == null;
+            if (unavailable)
+            {
+                incomplete = true;
+                process = process with { Identity = process.Identity with { State = MacProcessState.Unavailable } };
                 ReportUnavailable(pid, process.Identity.Error);
-            if (!MacUpdateBlockerRules.IsWithinBundle(process.Image, directory)) continue;
+            }
             var image = process.Image;
-            if (image == null || classifier.IsIgnored(image, directory)) continue;
+            if (!MacUpdateBlockerRules.IsWithinBundle(image, directory) || image == null
+                || classifier.IsIgnored(image, directory))
+            {
+                if (unavailable) entries.Add(new(process, null));
+                continue;
+            }
             var classification = enrich
                 ? classifier.Classify(new(image, directory, null, null, null))
                 : new UpdateBlockerClassification(false, null);
-            results.Add(new UpdateBlocker
+            var blocker = new UpdateBlocker
             {
                 Pid = pid,
-                Started = process.Identity.State == MacProcessState.Readable ? process.Identity.Started : 0,
+                Started = unavailable ? 0 : process.Identity.Started,
                 Name = image[(image.LastIndexOf('/') + 1)..],
                 File = image,
                 IsRelay = classification.IsRelay,
                 ParentName = classification.IsRelay ? classification.Program : null,
-            });
+            };
+            _detectedIdentities.Add(blocker, process.Identity);
+            entries.Add(new(process, blocker));
         }
-        return results.OrderBy(blocker => blocker.Name).ThenBy(blocker => blocker.Pid).ToArray();
+        return new(entries, incomplete);
     }
 
-    public async Task<bool> CloseAsync(UpdateBlocker blocker, bool force)
+    public async Task<MacCloseResult> CloseAsync(UpdateBlocker blocker, bool force)
     {
         ArgumentNullException.ThrowIfNull(blocker);
-        if (blocker.Pid <= 0 || blocker.Pid == currentPid || blocker.Started <= 0) return false;
-        var identity = processes.ReadIdentity(blocker.Pid);
-        var decision = MacUpdateBlockerRules.DecideClose(blocker, identity, currentPid);
-        if (decision == MacCloseDecision.Closed) return true;
-        if (decision == MacCloseDecision.Refuse)
-        {
-            ReportUnavailable(blocker.Pid, identity.Error);
-            return false;
-        }
+        if (blocker.Pid <= 0 || blocker.Pid == _currentPid || blocker.Started <= 0) return MacCloseResult.AccessDenied;
+        _detectedIdentities.TryGetValue(blocker, out var detected);
+        var token = detected?.Token;
+        var identity = _processes.ReadIdentity(blocker.Pid);
+        var result = MacUpdateBlockerRules.CheckIdentity(blocker, identity, token);
+        if (result != null) return ReportResult(result.Value, identity);
+        // Ne jamais fabriquer une autorisation à la fermeture à partir d'un PID seul ou d'une nouvelle lecture.
+        if (token == null || token.Value.Pid != blocker.Pid) return MacCloseResult.AccessDenied;
 
-        // kill ne permet pas de rendre atomiques le contrôle d'identité et l'envoi du signal.
-        var error = processes.SendSignal(blocker.Pid, force ? 9 : 15);
-        if (error == 3) return true; // ESRCH : le processus a disparu entre les deux appels.
+        var error = _processes.SendSignal(token.Value, force ? 9 : 15);
+        if (error == 3) // ESRCH : disparu ou génération changée pendant l'appel natif.
+        {
+            identity = _processes.ReadIdentity(blocker.Pid);
+            result = MacUpdateBlockerRules.CheckIdentity(blocker, identity, token);
+            return ReportResult(result ?? MacCloseResult.StillRunning, identity);
+        }
         if (error != 0)
         {
-            log.Warn(new Win32Exception(error), $"Cannot close an update lock owner (PID {blocker.Pid})");
-            return false;
+            _log.Warn(new Win32Exception(error), $"Cannot close an update lock owner (PID {blocker.Pid})");
+            return error is 1 or 13 or 45 or 78 ? MacCloseResult.AccessDenied : MacCloseResult.StillRunning;
         }
 
-        var elapsed = Stopwatch.StartNew();
+        var started = _time.GetTimestamp();
         while (true)
         {
-            identity = processes.ReadIdentity(blocker.Pid);
-            decision = MacUpdateBlockerRules.DecideClose(blocker, identity, currentPid);
-            if (decision == MacCloseDecision.Closed) return true;
-            if (decision == MacCloseDecision.Refuse)
-            {
-                ReportUnavailable(blocker.Pid, identity.Error);
-                return false;
-            }
-            if (elapsed.Elapsed >= exitTimeout) return false;
-            await Task.Delay(TimeSpan.FromMilliseconds(50)).ConfigureAwait(false);
+            identity = _processes.ReadIdentity(blocker.Pid);
+            result = MacUpdateBlockerRules.CheckIdentity(blocker, identity, token);
+            if (result == MacCloseResult.Gone) return MacCloseResult.Closed;
+            if (result != null) return ReportResult(result.Value, identity);
+            var remaining = _exitTimeout - _time.GetElapsedTime(started);
+            if (remaining <= TimeSpan.Zero) return MacCloseResult.StillRunning;
+            var delay = remaining < TimeSpan.FromMilliseconds(50) ? remaining : TimeSpan.FromMilliseconds(50);
+            await Task.Delay(delay, _time).ConfigureAwait(false);
         }
+    }
+
+    private MacCloseResult ReportResult(MacCloseResult result, MacProcessIdentity identity)
+    {
+        if (result == MacCloseResult.AccessDenied) ReportUnavailable(identity.Pid, identity.Error);
+        return result;
     }
 
     private void ReportUnavailable(int pid, int error) =>
-        log.Warn(new Win32Exception(error), $"Cannot inspect process (PID {pid}); update blocker detection may be incomplete");
+        _log.Warn(new Win32Exception(error), $"Cannot inspect process (PID {pid}); update blocker detection may be incomplete");
 }

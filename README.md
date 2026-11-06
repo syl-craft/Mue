@@ -16,6 +16,14 @@ WindowsUpdateBlockerFinder est réservé à Windows, avec System.Management 8.0.
 natifs. UpdateBlockers conserve les opérations pures de sélection et d'identité ; la recherche
 et la fermeture passent par IUpdateBlockerFinder.
 
+Sur macOS 15+, `MacUpdateBlockerFinder` recherche les exécutables d'un bundle `.app`.
+La fermeture douce attend cinq secondes ; le constructeur
+`new MacUpdateBlockerFinder(exitTimeout: TimeSpan.FromSeconds(7), log: log)` permet de régler ce délai.
+Conserver les objets retournés par `Find` et utiliser la même instance pour `CloseAsync` :
+elle garde leur audit token natif. Sans ce token, aucun signal n'est envoyé.
+Le contrat 0.1.0 réduit encore les résultats de fermeture à un booléen et ne restitue pas
+l'état incomplet d'un scan ; les refus d'inspection sont journalisés.
+
 ## Intégration par un hôte
 
 Les textes anglais et français sont intégrés. Configurer un fournisseur est facultatif :
