@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net8.0-windows;net10.0-windows</TargetFrameworks>
+    <UseWPF>true</UseWPF>
+    <Description>Dialogues WPF de mise à jour, habillés et traduits par l'application hôte.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Mue/Mue.csproj" />
+  </ItemGroup>
+</Project>

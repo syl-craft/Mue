@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+    <RootNamespace>Mue</RootNamespace>
+    <Description>Moteur de mise à jour et contrats indépendants de l'application hôte.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="System.Management" Version="8.0.0" />
+    <InternalsVisibleTo Include="Mue.Tests" />
+    <InternalsVisibleTo Include="Mue.Velopack" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,13 @@
+bin/
+obj/
+TestResults/
+artifacts/
+.vs/
+.idea/
+*.user
+*.suo
+*.nupkg
+*.snupkg
+*.log
+Thumbs.db
+.DS_Store
