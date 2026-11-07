@@ -37,7 +37,12 @@ public sealed class CaptureTests
                 using var service = new UpdateService(backend);
                 var host = new TestHost();
                 if (state == UpdateState.Preparing) host.PrepareOverride = async () => { preparing.SetResult(); await gate.Task; return false; };
-                var dialog = new UpdatesDialog(service, host) { Width = width, Height = height };
+                var dialog = new UpdatesDialog(service, host, async blockers =>
+                {
+                    blockers.Show();
+                    await blockers.CloseSelectedAsync();
+                    return blockers.Accepted;
+                }) { Width = width, Height = height };
                 dialog.Show();
                 Task? pending = null;
                 if (state == UpdateState.Checking) pending = service.CheckAsync();
@@ -52,8 +57,8 @@ public sealed class CaptureTests
                 }
                 Assert.Equal(state, service.State);
                 Capture(dialog, state.ToString(), dark, width, height);
-                Assert.Equal(service.Presentation.PrimaryKey == "Common_Close" ? "Fermer" : service.PrimaryLabel, Fixtures.Control<Button>(dialog, "InstallButton").Content);
-                Assert.Equal(service.Presentation.SecondaryKey == "Common_Close" ? "Fermer" : service.SecondaryLabel, Fixtures.Control<Button>(dialog, "SecondaryButton").Content);
+                Assert.Equal(service.Presentation.PrimaryKey == "Common_Close" ? UpdateTexts.T("Update_CloseWindow") : service.PrimaryLabel, Fixtures.Control<Button>(dialog, "InstallButton").Content);
+                Assert.Equal(service.Presentation.SecondaryKey == "Common_Close" ? UpdateTexts.T("Update_CloseWindow") : service.SecondaryLabel, Fixtures.Control<Button>(dialog, "SecondaryButton").Content);
                 Assert.Equal(service.PrimaryEnabled, Fixtures.Control<Button>(dialog, "InstallButton").IsEnabled);
                 Assert.Equal(service.SecondaryEnabled, Fixtures.Control<Button>(dialog, "SecondaryButton").IsEnabled);
                 gate.TrySetResult();
@@ -63,7 +68,7 @@ public sealed class CaptureTests
             foreach (var incomplete in new[] { false, true })
             {
                 var host = new TestHost { Blockers = [Fixtures.Blocker(), Fixtures.Blocker(pid: 91, selected: false, unavailable: incomplete)] };
-                var dialog = new UpdateBlockersDialog(UpdateBlockerQuery.ForDirectory(Path.GetTempPath()), host.Blockers,
+                var dialog = new UpdateBlockersDialog(UpdateBlockerQuery.ForDirectory(Path.GetTempPath()), new(host.Blockers),
                     host, UpdateShutdownBehavior.Kill, summary: host.Summary) { Width = width, Height = height };
                 dialog.Show();
                 Assert.Equal(incomplete, Fixtures.Control<TextBlock>(dialog, "DetectionWarning").IsVisible);
@@ -72,10 +77,22 @@ public sealed class CaptureTests
                 Capture(dialog, incomplete ? "DetectionIncomplete-details" : "Blockers-details", dark, width, height);
                 dialog.Close();
             }
+            foreach (var confirming in new[] { false, true })
+            {
+                var host = new TestHost { Blockers = confirming ? [] : [Fixtures.Blocker(selected: false)] };
+                var dialog = new UpdateBlockersDialog(UpdateBlockerQuery.ForDirectory(Path.GetTempPath()), new(host.Blockers),
+                    host, UpdateShutdownBehavior.Kill, summary: host.Summary) { Width = width, Height = height };
+                dialog.Show();
+                Assert.True(Fixtures.Control<Button>(dialog, "CloseButton").IsEnabled);
+                Assert.Equal(UpdateTexts.T(confirming ? "Update_ConfirmInstall" : "Update_InstallIgnoring"),
+                    Fixtures.Control<Button>(dialog, "CloseButton").Content);
+                Capture(dialog, confirming ? "Confirmation" : "NoneSelected", dark, width, height);
+                dialog.Close();
+            }
             foreach (var behavior in Enum.GetValues<UpdateShutdownBehavior>())
             {
                 var host = new TestHost { Blockers = [Fixtures.Blocker(), Fixtures.Blocker(pid: 91, selected: false)] };
-                var dialog = new UpdateBlockersDialog(UpdateBlockerQuery.ForDirectory(Path.GetTempPath()), host.Blockers,
+                var dialog = new UpdateBlockersDialog(UpdateBlockerQuery.ForDirectory(Path.GetTempPath()), new(host.Blockers),
                     host, behavior, summary: host.Summary) { Width = width, Height = height };
                 dialog.Show();
                 if (behavior != UpdateShutdownBehavior.Kill) Capture(dialog, $"Blockers-{behavior}", dark, width, height);
@@ -92,7 +109,7 @@ public sealed class CaptureTests
                 Blockers = resultBlockers,
                 CloseOverride = (blocker, _) => Task.FromResult(results[blocker.Pid]),
             };
-            var resultDialog = new UpdateBlockersDialog(UpdateBlockerQuery.ForDirectory(Path.GetTempPath()), resultBlockers,
+            var resultDialog = new UpdateBlockersDialog(UpdateBlockerQuery.ForDirectory(Path.GetTempPath()), new(resultBlockers),
                 resultHost, UpdateShutdownBehavior.Kill) { Width = width, Height = height };
             resultDialog.Show();
             resultHost.Blockers = resultBlockers.Where(blocker => results[blocker.Pid] is UpdateBlockerCloseResult.StillRunning or UpdateBlockerCloseResult.AccessDenied).ToArray();

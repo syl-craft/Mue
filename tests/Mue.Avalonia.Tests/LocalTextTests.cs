@@ -9,17 +9,17 @@ public sealed class LocalTextTests
 {
     private static readonly (UpdateBlockerCloseResult Result, string Key, string French, string English)[] Results =
     [
-        (UpdateBlockerCloseResult.Closed, "Update_CloseResultClosed", "Programme fermé", "Program closed"),
-        (UpdateBlockerCloseResult.StillRunning, "Update_CloseResultStillRunning", "Programme toujours ouvert", "Program still running"),
-        (UpdateBlockerCloseResult.AccessDenied, "Update_CloseResultAccessDenied", "Fermeture refusée : accès non autorisé", "Cannot close: access denied"),
-        (UpdateBlockerCloseResult.Gone, "Update_CloseResultGone", "Programme déjà terminé", "Program already exited"),
-        (UpdateBlockerCloseResult.IdentityChanged, "Update_CloseResultIdentityChanged", "Processus remplacé : aucune fermeture effectuée", "Process replaced: no closure attempted"),
+        (UpdateBlockerCloseResult.Closed, "Update_CloseResult_Closed", "Fermé", "Closed"),
+        (UpdateBlockerCloseResult.StillRunning, "Update_CloseResult_StillRunning", "Encore ouvert", "Still running"),
+        (UpdateBlockerCloseResult.AccessDenied, "Update_CloseResult_AccessDenied", "Accès refusé", "Access denied"),
+        (UpdateBlockerCloseResult.Gone, "Update_CloseResult_Gone", "Déjà terminé", "Already exited"),
+        (UpdateBlockerCloseResult.IdentityChanged, "Update_CloseResult_IdentityChanged", "Identité du processus modifiée", "Process identity changed"),
     ];
 
     [AvaloniaTheory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task DisplayedTextsUseLocalFallbackOrHostAndFollowLanguageChanges(bool hostTranslations)
+    public async Task DisplayedTextsUseCoreOrHostAndFollowLanguageChanges(bool hostTranslations)
     {
         var culture = CultureInfo.CurrentUICulture;
         var texts = new HostTexts(hostTranslations);
@@ -32,7 +32,7 @@ public sealed class LocalTextTests
             Blockers = blockers,
             CloseOverride = (blocker, _) => Task.FromResult(Results[blocker.Pid].Result),
         };
-        var dialog = new UpdateBlockersDialog(UpdateBlockerQuery.ForDirectory(Path.GetTempPath()), blockers, host, UpdateShutdownBehavior.Kill);
+        var dialog = new UpdateBlockersDialog(UpdateBlockerQuery.ForDirectory(Path.GetTempPath()), new(blockers), host, UpdateShutdownBehavior.Kill);
         try
         {
             updates.Show();
@@ -46,14 +46,14 @@ public sealed class LocalTextTests
                 texts.ChangeLanguage();
                 Dispatcher.UIThread.RunJobs();
                 var french = language == "fr-FR";
-                Assert.Equal(hostTranslations ? texts.T("Common_Close") : french ? "Fermer" : "Close",
+                Assert.Equal(hostTranslations ? texts.T("Update_CloseWindow") : french ? "Fermer" : "Close",
                     Fixtures.Control<Button>(updates, "InstallButton").Content);
                 Assert.Equal(UpdateTexts.T("Update_Check"), Fixtures.Control<Button>(updates, "SecondaryButton").Content);
                 var detection = Fixtures.Control<TextBlock>(dialog, "DetectionWarning");
                 Assert.True(detection.IsVisible);
-                Assert.Equal(hostTranslations ? texts.T("Update_DetectionIncomplete") : french
-                    ? "Détection incomplète : certains programmes n’ont pas pu être identifiés."
-                    : "Detection incomplete: some programs could not be identified.", detection.Text);
+                Assert.Equal(hostTranslations ? texts.T("Update_ScanIncomplete") : french
+                    ? "Détection incomplète : certains processus n'ont pas pu être identifiés."
+                    : "Detection incomplete: some processes could not be identified.", detection.Text);
                 var displayed = Fixtures.Control<StackPanel>(dialog, "CloseResults");
                 Assert.True(displayed.IsVisible);
                 Assert.Equal(Results.Length, displayed.Children.Count);
@@ -76,7 +76,7 @@ public sealed class LocalTextTests
     [AvaloniaTheory]
     [InlineData("fr-FR", "Fermer")]
     [InlineData("en-US", "Close")]
-    public async Task CloseFallbackAlsoAppearsOnSecondaryAction(string language, string expected)
+    public async Task CoreCloseTextAlsoAppearsOnSecondaryAction(string language, string expected)
     {
         var culture = CultureInfo.CurrentUICulture;
         CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo(language);
@@ -100,7 +100,7 @@ public sealed class LocalTextTests
         public bool TryGet(string key, out string text)
         {
             text = T(key);
-            return translations && (key is "Common_Close" or "Update_DetectionIncomplete" || Results.Where(result => result.Key == key).Any());
+            return translations && (key is "Update_CloseWindow" or "Update_ScanIncomplete" || Results.Where(result => result.Key == key).Any());
         }
         public string T(string key) => $"Hôte {CultureInfo.CurrentUICulture.Name} : {key}";
         public string F(string key, params object?[] args) => T(key);

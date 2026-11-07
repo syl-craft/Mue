@@ -54,8 +54,8 @@ public partial class UpdatesDialog : Window
     private void RefreshDisplay()
     {
         if (_closed) return;
-        InstallButton.Content = AvaloniaUpdateTexts.T(_updates.Presentation.PrimaryKey);
-        SecondaryButton.Content = AvaloniaUpdateTexts.T(_updates.Presentation.SecondaryKey);
+        InstallButton.Content = UpdateTexts.T(_updates.Presentation.PrimaryKey == "Common_Close" ? "Update_CloseWindow" : _updates.Presentation.PrimaryKey);
+        SecondaryButton.Content = UpdateTexts.T(_updates.Presentation.SecondaryKey == "Common_Close" ? "Update_CloseWindow" : _updates.Presentation.SecondaryKey);
         if (_updates.State == UpdateState.Checking) SetPreparationSummary(null);
         InstallButton.Bind(ThemeProperty, new DynamicResourceExtension(_updates.PrimaryAccent ? "PrimaryButton" : "SecondaryButton"));
         StateLabel.Bind(TextBlock.ForegroundProperty, new DynamicResourceExtension(_updates.State == UpdateState.Failed ? "Brush.Danger" : "Brush.TextLabel"));
@@ -148,15 +148,17 @@ public partial class UpdatesDialog : Window
             SetPreparationSummary(check.Summary);
             if (!check.CanContinue) return;
             var scan = await Task.Run(() => _host.Finder.Find(_updates.BlockerQuery, _host.Classifier), _lifetime.Token);
-            if (scan.Blockers.Count > 0)
+            IReadOnlySet<(int Pid, long Started)> ignored = new HashSet<(int Pid, long Started)>();
+            if (scan.Blockers.Count > 0 || check.Summary != null)
             {
-                var dialog = new UpdateBlockersDialog(_updates.BlockerQuery, scan.Blockers, _host,
+                var dialog = new UpdateBlockersDialog(_updates.BlockerQuery, scan, _host,
                     _updates.ShutdownBehavior, summary: check.Summary);
                 if (await _showBlockers(dialog) != true) return;
+                ignored = dialog.IgnoredBlockers;
             }
             // Le contrôle final reste sans enrichissement ; l'installeur arbitre ensuite le remplacement.
             var finalScan = await Task.Run(() => _host.Finder.Find(_updates.BlockerQuery, _host.Classifier, enrich: false), _lifetime.Token);
-            if (finalScan.Blockers.Count > 0) throw new IOException(UpdateTexts.T("Update_LockError"));
+            if (UpdateBlockers.HasUnacceptedBlockers(finalScan.Blockers, _updates.ShutdownBehavior, ignored)) throw new IOException(UpdateTexts.T("Update_LockError"));
             if (!await _host.PrepareAsync(this, _lifetime.Token)) return;
             _lifetime.Token.ThrowIfCancellationRequested();
             _host.BeforeApply();

@@ -12,10 +12,16 @@ namespace Mue.Avalonia;
 
 public partial class UpdateBlockersDialog : Window
 {
-    private readonly Func<Task<IReadOnlyList<UpdateBlocker>>> _refresh;
+    private readonly Func<Task<UpdateBlockerScan>> _refresh;
     private readonly Func<UpdateBlocker, bool, Task<UpdateBlockerCloseResult>> _close;
     private readonly IUpdateLog _log;
     private readonly UpdateShutdownBehavior _shutdownBehavior;
+    private readonly bool _requiresConfirmation;
+    private bool _scanIncomplete;
+    private readonly HashSet<(int Pid, long Started)> _ignored = [];
+    public IReadOnlySet<(int Pid, long Started)> IgnoredBlockers => _ignored;
+    private bool CanIgnore => _shutdownBehavior != UpdateShutdownBehavior.Refuse;
+    private bool Confirming => _requiresConfirmation && _blockers.Count == 0;
     private readonly HashSet<(int Pid, long Started)> _remaining = [];
     private readonly List<(UpdateBlocker Blocker, UpdateBlockerCloseResult Result)> _results = [];
     private IReadOnlyList<UpdateBlocker> _blockers = [];
@@ -23,22 +29,23 @@ public partial class UpdateBlockersDialog : Window
     private bool _closed;
     internal bool? Accepted { get; private set; }
 
-    public UpdateBlockersDialog(UpdateBlockerQuery query, IReadOnlyList<UpdateBlocker> blockers,
+    public UpdateBlockersDialog(UpdateBlockerQuery query, UpdateBlockerScan scan,
         IUpdateDialogHost host, UpdateShutdownBehavior shutdownBehavior,
-        Func<Task<IReadOnlyList<UpdateBlocker>>>? refresh = null,
+        Func<Task<UpdateBlockerScan>>? refresh = null,
         Func<UpdateBlocker, bool, Task<UpdateBlockerCloseResult>>? close = null,
         bool incomplete = false, string? summary = null)
     {
         InitializeComponent();
         _log = host.Log;
         _shutdownBehavior = shutdownBehavior;
-        _refresh = refresh ?? (() => Task.Run(() => host.Finder.Find(query, host.Classifier).Blockers));
+        _requiresConfirmation = summary != null;
+        _refresh = refresh ?? (() => Task.Run(() => host.Finder.Find(query, host.Classifier)));
         _close = close ?? ((blocker, force) => host.Finder.CloseAsync(blocker, force));
         PreparationSummary.Text = summary;
         PreparationSummary.IsVisible = summary != null;
         if (incomplete)
-            foreach (var blocker in blockers.Where(b => b.Selected)) _remaining.Add((blocker.Pid, blocker.Started));
-        ShowBlockers(blockers);
+            foreach (var blocker in scan.Blockers.Where(b => b.Selected)) _remaining.Add((blocker.Pid, blocker.Started));
+        ShowBlockers(scan);
         UpdateTexts.LanguageChanged += LanguageChanged;
         Closed += (_, _) =>
         {
@@ -54,11 +61,13 @@ public partial class UpdateBlockersDialog : Window
         base.OnClosing(e);
     }
 
-    private void LanguageChanged(object? sender, EventArgs e) => ShowBlockers(_blockers);
+    private void LanguageChanged(object? sender, EventArgs e) => ShowBlockers(new(_blockers));
     private void Blocker_Changed(object? sender, PropertyChangedEventArgs e) => UpdateLabels();
 
-    private void ShowBlockers(IReadOnlyList<UpdateBlocker> blockers)
+    private void ShowBlockers(UpdateBlockerScan scan)
     {
+        var blockers = scan.Blockers;
+        _scanIncomplete = scan.Incomplete;
         foreach (var blocker in _blockers) blocker.PropertyChanged -= Blocker_Changed;
         _blockers = blockers;
         foreach (var blocker in blockers) blocker.PropertyChanged += Blocker_Changed;
@@ -132,25 +141,29 @@ public partial class UpdateBlockersDialog : Window
     private void UpdateLabels()
     {
         var incomplete = _remaining.Count > 0;
+        Title = UpdateTexts.T(Confirming ? "Update_ConfirmTitle" : "Update_BlockedTitle");
         StateLabel.Text = UpdateTexts.T(incomplete ? "Update_IncompleteState" : "Update_StatePreparing").ToUpper(UpdateTexts.Formatting);
-        Heading.Text = incomplete ? UpdateTexts.F("Update_IncompleteTitle", _remaining.Count) : UpdateTexts.T("Update_BlockedTitle");
+        Heading.Text = Confirming ? UpdateTexts.T("Update_ConfirmTitle") : incomplete ? UpdateTexts.F("Update_IncompleteTitle", _remaining.Count) : UpdateTexts.T("Update_BlockedTitle");
+        HelpText.IsVisible = !Confirming;
         HelpText.Text = UpdateTexts.T(_shutdownBehavior switch
         {
             UpdateShutdownBehavior.Kill => incomplete ? "Update_IncompleteHelpForced" : "Update_BlockedHelpForced",
             UpdateShutdownBehavior.AskToQuit => incomplete ? "Update_IncompleteHelpAskToQuit" : "Update_BlockedHelpAskToQuit",
             _ => incomplete ? "Update_IncompleteHelp" : "Update_BlockedHelp",
         });
-        DetectionWarning.IsVisible = _blockers.Where(b => b.Unavailable).Any();
-        DetectionWarning.Text = BlockerTexts.DetectionIncomplete;
+        DetectionWarning.IsVisible = _scanIncomplete;
+        DetectionWarning.Text = UpdateTexts.T("Update_ScanIncomplete");
         ForceWarning.IsVisible = RemainingCard.IsVisible = incomplete;
         OtherHeading.IsVisible = incomplete && Processes.Children.Count > 0;
-        CloseButton.Content = incomplete ? UpdateTexts.T("Update_ForceInstall") : UpdateTexts.F("Update_CloseCount", _blockers.Where(b => b.Selected).Count());
+        var selectedCount = _blockers.Where(b => b.Selected).Count();
+        CloseButton.Content = Confirming ? UpdateTexts.T("Update_ConfirmInstall") : incomplete ? UpdateTexts.T("Update_ForceInstall")
+            : CanIgnore && selectedCount == 0 ? UpdateTexts.T("Update_InstallIgnoring") : UpdateTexts.F("Update_CloseCount", selectedCount);
         CloseButton.Bind(ThemeProperty, new DynamicResourceExtension(incomplete ? "DangerButton" : "PrimaryButton"));
-        CloseButton.IsEnabled = !_working && (incomplete || _blockers.Where(b => b.Selected).Any());
+        CloseButton.IsEnabled = !_working && (Confirming || CanIgnore || incomplete || selectedCount > 0);
         StateLabel.Bind(TextBlock.ForegroundProperty, new DynamicResourceExtension(incomplete ? "Brush.Danger" : "Brush.TextLabel"));
         CloseResults.Children.Clear();
         foreach (var (blocker, result) in _results)
-            CloseResults.Children.Add(new TextBlock { Text = $"{blocker.Label} : {BlockerTexts.CloseResult(result)}", TextWrapping = TextWrapping.Wrap });
+            CloseResults.Children.Add(new TextBlock { Text = $"{blocker.Label} : {UpdatePresentation.CloseResultText(result)}", TextWrapping = TextWrapping.Wrap });
         CloseResults.IsVisible = _results.Count > 0;
     }
 
@@ -158,12 +171,17 @@ public partial class UpdateBlockersDialog : Window
 
     private async Task RefreshAsync()
     {
-        var blockers = await _refresh();
+        var scan = await _refresh();
+        var blockers = scan.Blockers;
         var choices = _blockers.ToDictionary(b => (b.Pid, b.Started), b => b.Selected);
         foreach (var blocker in blockers)
             if (choices.TryGetValue((blocker.Pid, blocker.Started), out var selected)) blocker.Selected = selected;
-        ShowBlockers(blockers);
-        if (blockers.Count != 0) return;
+        ShowBlockers(scan);
+        if (blockers.Count == 0 && !_requiresConfirmation) Accept();
+    }
+
+    private void Accept()
+    {
         _working = false;
         Accepted = true;
         Close(true);
@@ -172,9 +190,15 @@ public partial class UpdateBlockersDialog : Window
     internal Task CloseSelectedAsync()
     {
         if (_working || _closed) return Task.CompletedTask;
+        if (Confirming) { Accept(); return Task.CompletedTask; }
         var force = _remaining.Count > 0;
         var selected = _blockers.Where(b => force ? _remaining.Contains((b.Pid, b.Started)) : b.Selected).ToArray();
-        if (selected.Length == 0) return Task.CompletedTask;
+        if (!CanIgnore && selected.Length == 0) return Task.CompletedTask;
+        _ignored.Clear();
+        if (CanIgnore)
+            foreach (var blocker in _blockers.Where(b => !b.Selected && !_remaining.Contains((b.Pid, b.Started))))
+                _ignored.Add((blocker.Pid, blocker.Started));
+        if (CanIgnore && selected.Length == 0) { Accept(); return Task.CompletedTask; }
         return RunAsync(async () =>
         {
             _results.Clear();
@@ -186,6 +210,7 @@ public partial class UpdateBlockersDialog : Window
                 _remaining.Add((blocker.Pid, blocker.Started));
             }
             await RefreshAsync();
+            if (CanIgnore && _blockers.Count > 0 && !UpdateBlockers.HasUnacceptedBlockers(_blockers, _shutdownBehavior, _ignored)) Accept();
         });
     }
 

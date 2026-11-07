@@ -1,41 +1,30 @@
 # T2 — Port Avalonia
 
-Base : `sylvain/b2-contrat-0-2-0`, commit `9fbd25e`. Travail isolé sur
-`sylvain/t2-mue-avalonia`. Ni le contrat, ni Mue.Wpf, ni Mue.Velopack, ni la version 0.2.0
-ne sont modifiés. Aucun paquet, tag ou push n'est produit.
+Base intégrée : `sylvain/b3-accord-ignorer-textes`, commit `6819162`, version 0.3.0.
+Travail isolé sur `sylvain/t2-mue-avalonia`. Le merge `594b082` conserve les projets
+Avalonia et les tests WPF dans la solution. Les sources du cœur, de Mue.Wpf et de
+Mue.Velopack restent identiques à b3. Aucun paquet, tag ou push n'est produit.
 
 ## État de validation
 
-Le port compile et ses tests passent. Les points 2, 4, 6 et 7 de la revue NIN-348-T2
-sont corrigés dans Avalonia. Les points 1 (accord sans bloqueur), 3 (choix Ignorer)
-et 5 (contenu D9) restent confiés à la session DockPad pour b2 ; cette correction ne
-valide donc pas T2 dans son ensemble. Aucun texte supplémentaire n'est introduit dans le cœur.
+Le port reprend le parcours b3 : accord explicite pour tout résumé non nul,
+confirmation après une liste vidée, choix des groupes ignorés pour `Kill` et
+`AskToQuit`, contrôle final par identité et textes fournis par le cœur.
+Les tests headless couvrent ces comportements en .NET 8 et .NET 10.
 
-### Textes provisoires à remonter dans le cœur
+### Textes du cœur
 
-`AvaloniaUpdateTexts.T` consulte d'abord `UpdateTexts.T` : les traductions de l'hôte,
-puis les ressources existantes du cœur, restent prioritaires. Uniquement si le résultat
-est le marqueur de clé absente `[clé]`, Avalonia fournit les replis ci-dessous.
-Ils suivent `CurrentUICulture` (français pour `fr`, anglais sinon), comme les ressources
-intégrées du cœur, et sont réévalués sur `UpdateTexts.LanguageChanged`.
-Les clés de présentation existantes, dont `Update_Later`, sont conservées.
+Les replis locaux `AvaloniaUpdateTexts` et `BlockerTexts` sont supprimés.
+Les textes viennent de `UpdateTexts`, avec priorité aux traductions de l'hôte et
+réévaluation lors de `LanguageChanged`. Le cœur remplace `{AppName}` dans ses
+ressources ; Avalonia n'effectue aucune substitution supplémentaire.
 
-| Clé à remonter | Repli français | Repli anglais |
-| --- | --- | --- |
-| `Common_Close` | Fermer | Close |
-| `Update_DetectionIncomplete` | Détection incomplète : certains programmes n’ont pas pu être identifiés. | Detection incomplete: some programs could not be identified. |
-| `Update_CloseResultClosed` | Programme fermé | Program closed |
-| `Update_CloseResultStillRunning` | Programme toujours ouvert | Program still running |
-| `Update_CloseResultAccessDenied` | Fermeture refusée : accès non autorisé | Cannot close: access denied |
-| `Update_CloseResultGone` | Programme déjà terminé | Program already exited |
-| `Update_CloseResultIdentityChanged` | Processus remplacé : aucune fermeture effectuée | Process replaced: no closure attempted |
-
-Cette liste et ces traductions sont à intégrer aux ressources fr/en du cœur sur b2,
-puis le repli local pourra être supprimé. `Common_Close` est déjà référencé par
-`UpdatePresentation`, mais absent des ressources du cœur à cette révision.
-`Update_IncompleteState` concerne la fermeture, et ne convient pas à la détection.
-Les textes D9 et les mentions DockPad des ressources existantes restent inchangés ;
-l'hôte peut les traduire via `IUpdateTexts`.
+Les cinq résultats de fermeture passent par `UpdatePresentation.CloseResultText`.
+`Update_ScanIncomplete` apparaît lorsque le `UpdateBlockerScan` est incomplet.
+Les titres et actions utilisent `Update_ConfirmTitle`, `Update_ConfirmInstall`,
+`Update_BlockedTitle` et `Update_InstallIgnoring`. La clé de présentation
+`Common_Close` est dirigée côté Avalonia vers `Update_CloseWindow`, fournie par le cœur.
+Les autres clés de présentation, dont `Update_Later`, sont conservées.
 
 ### Priorité des styles
 
@@ -48,9 +37,20 @@ l'idempotence et la priorité des dictionnaires de `Application.Resources`.
 ## Confirmation
 
 `UpdatesDialog` reprend l'ordre du WPF : clic installer, téléchargement, `CheckAsync`,
-affichage du résumé, recherche enrichie, dialogue des bloqueurs si nécessaire, recherche
+affichage du résumé, recherche enrichie, dialogue si des bloqueurs ou un résumé sont présents, recherche
 finale sans enrichissement, une seule préparation, `BeforeApply`, `Apply`, `ExitAfterApply`.
-Le report et la fermeture de la fenêtre des bloqueurs laissent la version téléchargée prête.
+Reporter, fermer la fenêtre ou appuyer sur Échap laisse la version téléchargée prête,
+sans accord, contrôle final ni préparation. Un résumé nul conserve le parcours sans confirmation.
+Un résumé non nul, même vide, exige un accord explicite. Sans bloqueur, le dialogue affiche
+« Confirmer l'installation ». Si Réessayer ou une fermeture vide la liste, il passe dans cet
+état et attend le clic « Confirmer et installer ».
+
+Avec `Kill` ou `AskToQuit`, les groupes décochés sont ignorés lors du clic d'installation.
+Sans sélection, « Installer sans les fermer » accepte directement. Après une fermeture,
+le dialogue accepte si seuls les processus ignorés restent présents. `IgnoredBlockers`
+expose leurs couples PID/date de démarrage. `UpdateBlockers.HasUnacceptedBlockers` tolère
+ces identités au contrôle final et refuse tout nouveau processus ou PID réutilisé.
+`Refuse` conserve son comportement strict.
 Un téléchargement terminé ou la construction d'une fenêtre n'installe rien.
 
 La première action sur les bloqueurs appelle leur fermeture coopérative. Les identités
@@ -72,10 +72,16 @@ avant de les transmettre au finder (`RelayIsNeverPassedToFinderBeforeForceConfir
 | --- | --- |
 | Résumé visible dans les deux fenêtres, sans préparation | `SummaryIsVisibleInBothWindowsBeforeAnyPreparationAndPostponeHasNoEffect` |
 | Accord final avant préparation unique et contrôle final | `FinalAgreementPrecedesSinglePreparationAndFinalScan` |
-| Reporter et fermer sans préparation | test du résumé et `ClosingBlockersDoesNotPrepare` |
+| Résumé nul, vide ou renseigné, avec ou sans bloqueur | `PreparationFollowsAgreementAndFinalScan` |
+| Reporter, fermer ou Échap sans préparation | `PostponeWindowCloseAndEscapeNeverPrepare` |
+| Réessayer vide la liste et attend confirmation | `RetryWithEmptyListOnlyAgreesWithoutSummary` |
+| Groupe décoché ignoré, y compris illisible | `IgnoredGroupIsAcceptedWithoutClosingIt` |
+| Fermeture des cochés, seuls les ignorés peuvent rester | `ClosingSelectedOnlyAcceptsAlreadyIgnoredRemainingProcesses` |
+| Nouveau processus ou PID réutilisé refusé au contrôle final | `FinalScanRejectsAnIdentityNotAccepted` |
+| Refuse ne permet pas d'ignorer | `RefuseCannotIgnoreAnUncheckedGroup` |
 | Arrêt forcé uniquement après seconde confirmation | `ForceRequiresASecondClickAfterCooperativeFailure` |
 | Erreur de détection distincte d'une liste vide | `DetectionFailureIsNotAnEmptySuccessfulScan` |
-| Résultats, détection et Fermer traduits, fournisseur prioritaire, changement de langue à chaud | `DisplayedTextsUseLocalFallbackOrHostAndFollowLanguageChanges`, `CloseFallbackAlsoAppearsOnSecondaryAction` |
+| Résultats, détection et Fermer traduits, fournisseur prioritaire, changement de langue à chaud | `DisplayedTextsUseCoreOrHostAndFollowLanguageChanges`, `CoreCloseTextAlsoAppearsOnSecondaryAction` |
 | Avertissement entièrement visible quand Forcer est actif | `ForceWarningStaysInsideWindowAtBothScrollExtremes` |
 | Refus, annulation, nouveau bloqueur, échec d'application | `RefusalCancellationAndNewBlockerPreventApplication`, `ApplyFailureResumesHostAndKeepsDownloadedRelease` |
 | Double clic et PID réutilisé | test de l'accord final et `CloseDoubleClickDoesNotRepeatOperationsAndIdentityChangeDropsOldSelection` |
@@ -89,7 +95,7 @@ avant de les transmettre au finder (`RelayIsNeverPassedToFinderBeforeForceConfir
 
 ## Captures
 
-`dotnet test -m:4` régénère 216 PNG Skia, sans fenêtre native, réseau ni processus réel
+`dotnet test -m:4` régénère 232 PNG Skia, sans fenêtre native, réseau ni processus réel
 dans les fixtures Avalonia. Les tests existants de Mue, dont `RealMachine`, sont exécutés séparément
 par la même commande. Chaque capture vérifie ses dimensions et la présence des boutons dans
 la zone cliente. Les notes longues et les chemins de processus sont défilables.
@@ -107,6 +113,8 @@ Chemin : `artifacts/avalonia/{net8.0|net10.0}/{clair|sombre}-{440x360|560x480}/`
 | Installation | `Installing.png` |
 | Erreur | `Failed.png` |
 | Indisponible | `Unavailable.png` |
+| Confirmation sans bloqueur | `Confirmation.png` |
+| Aucun groupe coché | `NoneSelected.png` |
 | Bloqueurs | `Blockers.png`, `Blockers-details.png` |
 | Détection incomplète | `DetectionIncomplete.png`, `DetectionIncomplete-details.png` |
 | Variantes de capacité | `Blockers-AskToQuit.png`, `Blockers-Refuse.png` |
@@ -123,8 +131,9 @@ et aux actions ; la zone des notes est réduite. À 560 × 480, plusieurs lignes
 ## Vérifications locales
 
 - `dotnet build Mue.sln -m:4` : succès, zéro avertissement, zéro erreur.
-- `dotnet test -m:4` : 86 tests Mue, 37 tests Avalonia en net8.0, 37 en net10.0 ; aucun ignoré.
-- Aucun changement de source du cœur, de WPF ou de Velopack par rapport à `9fbd25e`.
+- `dotnet test -m:4` : 153 tests Mue, 29 tests WPF, 63 tests Avalonia en net8.0, 63 en net10.0 ;
+  9 tests natifs Mac ignorés sous Windows, aucun échec.
+- Aucun changement de source du cœur, de WPF ou de Velopack par rapport à `6819162`.
 - Aucun build ni parcours du dépôt consommateur DockPad, aucune comparaison pixel de DockPad :
   le jalon de publication reste à effectuer dans sa session. Aucune connexion au Mac.
 

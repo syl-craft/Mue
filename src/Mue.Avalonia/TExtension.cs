@@ -21,7 +21,7 @@ internal sealed class UpdateTextSource : INotifyPropertyChanged
 {
     private static readonly Dictionary<string, UpdateTextSource> Sources = [];
     private readonly string _key;
-    public string Text => AvaloniaUpdateTexts.T(_key);
+    public string Text => UpdateTexts.T(_key);
     public event PropertyChangedEventHandler? PropertyChanged;
 
     public static UpdateTextSource For(string key)

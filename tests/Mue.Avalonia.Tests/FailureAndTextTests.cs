@@ -43,7 +43,7 @@ public sealed class FailureAndTextTests
         backend.ApplyFailure = new IOException("Application refusée");
         using var service = new UpdateService(backend);
         await service.CheckAsync();
-        var host = new TestHost();
+        var host = new TestHost { Summary = null };
         var dialog = new UpdatesDialog(service, host);
         await dialog.InstallAsync();
         Assert.Equal(new[] { "check", "find", "final", "prepare", "before", "failed", "error" }, host.Calls);
@@ -76,7 +76,7 @@ public sealed class FailureAndTextTests
         var replacement = Fixtures.Blocker(selected: false, started: 2);
         var gate = new TaskCompletionSource<UpdateBlockerCloseResult>();
         var host = new TestHost { Blockers = [old], CloseOverride = (_, _) => gate.Task };
-        var dialog = new UpdateBlockersDialog(UpdateBlockerQuery.ForDirectory(Path.GetTempPath()), host.Blockers, host, UpdateShutdownBehavior.Kill);
+        var dialog = new UpdateBlockersDialog(UpdateBlockerQuery.ForDirectory(Path.GetTempPath()), new(host.Blockers), host, UpdateShutdownBehavior.Kill);
         dialog.Show();
         var closing = dialog.CloseSelectedAsync();
         await dialog.CloseSelectedAsync();
@@ -88,7 +88,9 @@ public sealed class FailureAndTextTests
         await closing;
         Assert.False(replacement.Selected);
         Assert.False(Fixtures.Control<Border>(dialog, "ForceWarning").IsVisible);
-        Assert.False(Fixtures.Control<Button>(dialog, "CloseButton").IsEnabled);
+        Assert.True(Fixtures.Control<Button>(dialog, "CloseButton").IsEnabled);
+        Assert.Null(dialog.Accepted);
+        Assert.Empty(dialog.IgnoredBlockers);
         dialog.Close();
     }
 
@@ -99,7 +101,7 @@ public sealed class FailureAndTextTests
     public async Task ShutdownBehaviorSelectsD9Texts(UpdateShutdownBehavior behavior, string initial, string remaining)
     {
         var host = new TestHost { Blockers = [Fixtures.Blocker(unavailable: true)] };
-        var dialog = new UpdateBlockersDialog(UpdateBlockerQuery.ForDirectory(Path.GetTempPath()), host.Blockers, host, behavior);
+        var dialog = new UpdateBlockersDialog(UpdateBlockerQuery.ForDirectory(Path.GetTempPath()), new(host.Blockers), host, behavior);
         dialog.Show();
         Assert.Equal(UpdateTexts.T(initial), Fixtures.Control<TextBlock>(dialog, "HelpText").Text);
         Assert.True(Fixtures.Control<TextBlock>(dialog, "DetectionWarning").IsVisible);

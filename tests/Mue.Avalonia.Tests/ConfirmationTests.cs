@@ -63,14 +63,11 @@ public sealed class ConfirmationTests
         });
         dialog.Show();
         var install = dialog.InstallAsync();
-        if (blockersPresent)
-        {
-            await shown.Task;
-            Assert.DoesNotContain("prepare", host.Calls);
-            await dialog.InstallAsync();
-            host.Blockers = [];
-            agreement.SetResult(true);
-        }
+        await shown.Task;
+        Assert.DoesNotContain("prepare", host.Calls);
+        await dialog.InstallAsync();
+        host.Blockers = [];
+        agreement.SetResult(true);
         await install;
         Assert.Equal(new[] { "check", "find", "final", "prepare", "before", "exit" }, host.Calls);
         Assert.Equal(1, backend.Applies);
@@ -104,7 +101,7 @@ public sealed class ConfirmationTests
     {
         var blocker = Fixtures.Blocker();
         var host = new TestHost { Blockers = [blocker] };
-        var dialog = new UpdateBlockersDialog(UpdateBlockerQuery.ForDirectory(Path.GetTempPath()), host.Blockers, host, UpdateShutdownBehavior.Kill);
+        var dialog = new UpdateBlockersDialog(UpdateBlockerQuery.ForDirectory(Path.GetTempPath()), new(host.Blockers), host, UpdateShutdownBehavior.Kill);
         dialog.Show();
         Assert.False(Fixtures.Control<Border>(dialog, "ForceWarning").IsVisible);
         Assert.DoesNotContain("force", host.Calls);
@@ -123,7 +120,7 @@ public sealed class ConfirmationTests
     {
         var relay = new UpdateBlocker { Pid = 42, Name = "Relais", IsRelay = true };
         var host = new TestHost { Blockers = [relay] };
-        var dialog = new UpdateBlockersDialog(UpdateBlockerQuery.ForDirectory(Path.GetTempPath()), host.Blockers, host, UpdateShutdownBehavior.Kill);
+        var dialog = new UpdateBlockersDialog(UpdateBlockerQuery.ForDirectory(Path.GetTempPath()), new(host.Blockers), host, UpdateShutdownBehavior.Kill);
         dialog.Show();
         await dialog.CloseSelectedAsync();
         Assert.Equal(new[] { "find" }, host.Calls);
@@ -137,7 +134,7 @@ public sealed class ConfirmationTests
     public async Task DetectionFailureIsNotAnEmptySuccessfulScan()
     {
         var host = new TestHost { Blockers = [Fixtures.Blocker()], FindOverride = _ => throw new IOException("détection refusée") };
-        var blockers = new UpdateBlockersDialog(UpdateBlockerQuery.ForDirectory(Path.GetTempPath()), host.Blockers, host, UpdateShutdownBehavior.Refuse);
+        var blockers = new UpdateBlockersDialog(UpdateBlockerQuery.ForDirectory(Path.GetTempPath()), new(host.Blockers), host, UpdateShutdownBehavior.Refuse);
         blockers.Show();
         await blockers.RetryAsync();
         Assert.Null(blockers.Accepted);
@@ -171,7 +168,7 @@ public sealed class ConfirmationTests
         System.Globalization.CultureInfo.CurrentUICulture = System.Globalization.CultureInfo.GetCultureInfo(language);
         UpdateTexts.Configure(null);
         var host = new TestHost { Blockers = Enumerable.Range(1, 20).Select(pid => Fixtures.Blocker(pid: pid)).ToArray() };
-        var dialog = new UpdateBlockersDialog(UpdateBlockerQuery.ForDirectory(Path.GetTempPath()), host.Blockers, host, UpdateShutdownBehavior.Kill)
+        var dialog = new UpdateBlockersDialog(UpdateBlockerQuery.ForDirectory(Path.GetTempPath()), new(host.Blockers), host, UpdateShutdownBehavior.Kill)
         { Width = width, Height = height };
         try
         {

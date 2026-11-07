@@ -2,6 +2,8 @@
 
 ## Non publié
 
+- Avalonia reprend l’accord explicite, les groupes ignorés et le contrôle final par identité de b3 ; les textes provisoires sont remplacés par ceux du cœur. Tests headless et captures de confirmation, sans sélection et de scan incomplet.
+
 - Projet `Mue.Avalonia` en Avalonia 12.1.4 pour .NET 8 et .NET 10 : fenêtres de mise à jour et de bloqueurs, indicateur autonome 40/26 px.
 - Flux de confirmation, résultats de fermeture, ressources dynamiques et repli clair/sombre de faible priorité.
 - Tests headless et captures des états dans `artifacts/avalonia/` ; ajout à la solution et au script d'empaquetage.
