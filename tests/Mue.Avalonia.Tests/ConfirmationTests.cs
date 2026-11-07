@@ -14,33 +14,40 @@ public sealed class ConfirmationTests
         using var service = new UpdateService(backend);
         await service.CheckAsync();
         var host = new TestHost { Blockers = [Fixtures.Blocker()] };
+        var shown = new TaskCompletionSource<UpdateBlockersDialog>();
         UpdatesDialog? updates = null;
         updates = new UpdatesDialog(service, host, blockers =>
         {
-            var window = updates ?? throw new InvalidOperationException();
-            var summary = Fixtures.Control<TextBlock>(window, "PreparationSummary");
+            var result = blockers.ShowDialog<bool?>(updates ?? throw new InvalidOperationException());
+            shown.SetResult(blockers);
+            return result;
+        });
+        updates.Show();
+        var install = updates.InstallAsync();
+        var blockers = await shown.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        try
+        {
+            var summary = Fixtures.Control<TextBlock>(updates, "PreparationSummary");
             Assert.True(summary.IsVisible);
             Assert.Equal(host.Summary, summary.Text);
-            window.UpdateLayout();
+            updates.UpdateLayout();
             Assert.True(summary.Bounds.Height > 0);
-            Assert.True(summary.Bounds.Bottom <= Fixtures.Control<Border>(window, "Footer").Bounds.Top);
+            Assert.True(summary.Bounds.Bottom <= Fixtures.Control<Border>(updates, "Footer").Bounds.Top);
             Assert.Equal(host.Summary, Fixtures.Control<TextBlock>(blockers, "PreparationSummary").Text);
             Assert.True(Fixtures.Control<TextBlock>(blockers, "PreparationSummary").IsVisible);
             Assert.Equal(new[] { "check", "find" }, host.Calls);
             Assert.Equal(0, backend.Applies);
-            blockers.Show();
             Fixtures.Click(blockers, "PostponeButton");
             Assert.False(blockers.Accepted);
-            return Task.FromResult<bool?>(false);
-        });
-        updates.Show();
-        await updates.InstallAsync();
-        Assert.Equal(UpdateState.Ready, service.State);
-        Assert.DoesNotContain("prepare", host.Calls);
-        Assert.DoesNotContain("close", host.Calls);
-        Assert.Equal(0, backend.Applies);
-        Assert.Same(updates, host.CheckOwner);
-        updates.Close();
+            await install;
+            Assert.Equal(UpdateState.Ready, service.State);
+            Assert.DoesNotContain("prepare", host.Calls);
+            Assert.DoesNotContain("close", host.Calls);
+            Assert.Equal(0, backend.Applies);
+            Assert.Same(updates, host.CheckOwner);
+            Assert.Null(host.Error);
+        }
+        finally { blockers.Close(); await install; updates.Close(); }
     }
 
     [AvaloniaTheory]
@@ -52,28 +59,36 @@ public sealed class ConfirmationTests
         using var service = new UpdateService(backend);
         await service.CheckAsync();
         var host = new TestHost { Blockers = blockersPresent ? [Fixtures.Blocker()] : [] };
-        var agreement = new TaskCompletionSource<bool?>();
-        var shown = new TaskCompletionSource();
-        UpdateBlockersDialog? child = null;
-        var dialog = new UpdatesDialog(service, host, blockers =>
+        var shown = new TaskCompletionSource<UpdateBlockersDialog>();
+        UpdatesDialog? dialog = null;
+        dialog = new UpdatesDialog(service, host, blockers =>
         {
-            child = blockers;
-            shown.SetResult();
-            return agreement.Task;
+            var result = blockers.ShowDialog<bool?>(dialog ?? throw new InvalidOperationException());
+            shown.SetResult(blockers);
+            return result;
         });
         dialog.Show();
         var install = dialog.InstallAsync();
-        await shown.Task;
-        Assert.DoesNotContain("prepare", host.Calls);
-        await dialog.InstallAsync();
-        host.Blockers = [];
-        agreement.SetResult(true);
-        await install;
-        Assert.Equal(new[] { "check", "find", "final", "prepare", "before", "exit" }, host.Calls);
-        Assert.Equal(1, backend.Applies);
-        Assert.Equal(UpdateState.Installing, service.State);
-        child?.Close();
-        dialog.Close();
+        var child = await shown.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        try
+        {
+            Assert.DoesNotContain("prepare", host.Calls);
+            await dialog.InstallAsync();
+            host.Blockers = [];
+            if (blockersPresent) await child.RetryAsync();
+            Assert.True(child.IsVisible);
+            Assert.DoesNotContain("prepare", host.Calls);
+            Fixtures.Click(child, "CloseButton");
+            await install;
+            Assert.True(child.Accepted);
+            Assert.False(child.IsVisible);
+            Assert.Equal(blockersPresent ? new[] { "check", "find", "find", "final", "prepare", "before", "exit" }
+                : new[] { "check", "find", "final", "prepare", "before", "exit" }, host.Calls);
+            Assert.Equal(1, backend.Applies);
+            Assert.Equal(UpdateState.Installing, service.State);
+            Assert.Null(host.Error);
+        }
+        finally { child.Close(); await install; dialog.Close(); }
     }
 
     [AvaloniaFact]
@@ -83,14 +98,18 @@ public sealed class ConfirmationTests
         using var service = new UpdateService(backend);
         await service.CheckAsync();
         var host = new TestHost { Blockers = [Fixtures.Blocker()] };
+        UpdateBlockersDialog? child = null;
         var dialog = new UpdatesDialog(service, host, blockers =>
         {
+            child = blockers;
             blockers.Show();
             blockers.Close();
-            Assert.Null(blockers.Accepted);
             return Task.FromResult<bool?>(null);
         });
         await dialog.InstallAsync();
+        Assert.NotNull(child);
+        Assert.Null(child.Accepted);
+        Assert.Null(host.Error);
         Assert.DoesNotContain("prepare", host.Calls);
         Assert.Equal(0, backend.Applies);
         dialog.Close();
@@ -115,19 +134,62 @@ public sealed class ConfirmationTests
         dialog.Close();
     }
 
-    [AvaloniaFact]
-    public async Task RelayIsNeverPassedToFinderBeforeForceConfirmation()
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RelayRequestsCooperativeCloseUnlessFinderForcesIt(bool windowsFinder)
     {
+        if (windowsFinder && !OperatingSystem.IsWindows()) return;
         var relay = new UpdateBlocker { Pid = 42, Name = "Relais", IsRelay = true };
         var host = new TestHost { Blockers = [relay] };
-        var dialog = new UpdateBlockersDialog(UpdateBlockerQuery.ForDirectory(Path.GetTempPath()), new(host.Blockers), host, UpdateShutdownBehavior.Kill);
+        if (windowsFinder && OperatingSystem.IsWindows()) host.FinderOverride = new WindowsUpdateBlockerFinder();
+        var dialog = new UpdateBlockersDialog(UpdateBlockerQuery.ForDirectory(Path.GetTempPath()), new(host.Blockers), host,
+            UpdateShutdownBehavior.Kill, refresh: () => Task.FromResult(host.Find(UpdateBlockerQuery.ForDirectory(Path.GetTempPath()), host.Classifier)),
+            close: (blocker, force) => host.CloseAsync(blocker, force));
         dialog.Show();
         await dialog.CloseSelectedAsync();
-        Assert.Equal(new[] { "find" }, host.Calls);
+        Assert.Equal(windowsFinder ? new[] { "find" } : new[] { "close", "find" }, host.Calls);
         Assert.True(Fixtures.Control<Border>(dialog, "ForceWarning").IsVisible);
         await dialog.CloseSelectedAsync();
-        Assert.Equal(new[] { "find", "force", "find" }, host.Calls);
+        Assert.Equal(windowsFinder ? new[] { "find", "force", "find" } : new[] { "close", "find", "force", "find" }, host.Calls);
         dialog.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task AllSelectedProcessesStartClosingBeforeAnyCompletes()
+    {
+        var pending = Enumerable.Range(1, 20).ToDictionary(pid => pid, _ => new TaskCompletionSource<UpdateBlockerCloseResult>());
+        var started = new List<int>();
+        var host = new TestHost { Blockers = pending.Keys.Select(pid => Fixtures.Blocker(pid: pid, started: 100)).ToArray() };
+        host.CloseOverride = (blocker, _) =>
+        {
+            started.Add(blocker.Pid);
+            return pending[blocker.Pid].Task;
+        };
+        var dialog = new UpdateBlockersDialog(UpdateBlockerQuery.ForDirectory(Path.GetTempPath()), new(host.Blockers), host, UpdateShutdownBehavior.Kill);
+        dialog.Show();
+        var closing = dialog.CloseSelectedAsync();
+        try
+        {
+            Assert.Equal(pending.Keys.ToArray(), started);
+            Assert.False(closing.IsCompleted);
+            pending[20].SetResult(UpdateBlockerCloseResult.AccessDenied);
+            Assert.False(closing.IsCompleted);
+            foreach (var completion in pending.Values) completion.TrySetResult(UpdateBlockerCloseResult.StillRunning);
+            await closing;
+            Assert.Equal(new[] { "find" }, host.Calls.TakeLast(1));
+            Assert.Equal(20, Fixtures.Control<StackPanel>(dialog, "CloseResults").Children.Count);
+            var last = Assert.IsType<TextBlock>(Fixtures.Control<StackPanel>(dialog, "CloseResults").Children.Last());
+            Assert.Equal($"{host.Blockers[19].Label} : {UpdatePresentation.CloseResultText(UpdateBlockerCloseResult.AccessDenied)}", last.Text);
+            Assert.True(Fixtures.Control<Border>(dialog, "ForceWarning").IsVisible);
+            Assert.True(Fixtures.Control<Button>(dialog, "PostponeButton").IsEnabled);
+        }
+        finally
+        {
+            foreach (var completion in pending.Values) completion.TrySetResult(UpdateBlockerCloseResult.StillRunning);
+            await closing;
+            dialog.Close();
+        }
     }
 
     [AvaloniaFact]

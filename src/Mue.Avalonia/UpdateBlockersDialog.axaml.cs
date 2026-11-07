@@ -17,6 +17,7 @@ public partial class UpdateBlockersDialog : Window
     private readonly IUpdateLog _log;
     private readonly UpdateShutdownBehavior _shutdownBehavior;
     private readonly bool _requiresConfirmation;
+    private readonly bool _deferRelayClose;
     private bool _scanIncomplete;
     private readonly HashSet<(int Pid, long Started)> _ignored = [];
     public IReadOnlySet<(int Pid, long Started)> IgnoredBlockers => _ignored;
@@ -39,6 +40,7 @@ public partial class UpdateBlockersDialog : Window
         _log = host.Log;
         _shutdownBehavior = shutdownBehavior;
         _requiresConfirmation = summary != null;
+        _deferRelayClose = OperatingSystem.IsWindows() && host.Finder is WindowsUpdateBlockerFinder;
         _refresh = refresh ?? (() => Task.Run(() => host.Finder.Find(query, host.Classifier)));
         _close = close ?? ((blocker, force) => host.Finder.CloseAsync(blocker, force));
         PreparationSummary.Text = summary;
@@ -159,7 +161,8 @@ public partial class UpdateBlockersDialog : Window
         CloseButton.Content = Confirming ? UpdateTexts.T("Update_ConfirmInstall") : incomplete ? UpdateTexts.T("Update_ForceInstall")
             : CanIgnore && selectedCount == 0 ? UpdateTexts.T("Update_InstallIgnoring") : UpdateTexts.F("Update_CloseCount", selectedCount);
         CloseButton.Bind(ThemeProperty, new DynamicResourceExtension(incomplete ? "DangerButton" : "PrimaryButton"));
-        CloseButton.IsEnabled = !_working && (Confirming || CanIgnore || incomplete || selectedCount > 0);
+        var canIgnoreAll = CanIgnore && !_blockers.Where(b => b.Started <= 0).Any();
+        CloseButton.IsEnabled = !_working && (Confirming || canIgnoreAll || incomplete || selectedCount > 0);
         StateLabel.Bind(TextBlock.ForegroundProperty, new DynamicResourceExtension(incomplete ? "Brush.Danger" : "Brush.TextLabel"));
         CloseResults.Children.Clear();
         foreach (var (blocker, result) in _results)
@@ -196,16 +199,25 @@ public partial class UpdateBlockersDialog : Window
         if (!CanIgnore && selected.Length == 0) return Task.CompletedTask;
         _ignored.Clear();
         if (CanIgnore)
-            foreach (var blocker in _blockers.Where(b => !b.Selected && !_remaining.Contains((b.Pid, b.Started))))
+            foreach (var blocker in _blockers.Where(b => !b.Selected && b.Started > 0 && !_remaining.Contains((b.Pid, b.Started))))
                 _ignored.Add((blocker.Pid, blocker.Started));
-        if (CanIgnore && selected.Length == 0) { Accept(); return Task.CompletedTask; }
+        if (selected.Length == 0)
+        {
+            if (!UpdateBlockers.HasUnacceptedBlockers(_blockers, _shutdownBehavior, _ignored)) Accept();
+            return Task.CompletedTask;
+        }
         return RunAsync(async () =>
         {
             _results.Clear();
-            foreach (var blocker in selected)
+            var results = await Task.WhenAll(selected.Select(async blocker =>
             {
                 // Le finder Windows arrête les relais de force même si force vaut false.
-                var result = blocker.IsRelay && !force ? UpdateBlockerCloseResult.StillRunning : await _close(blocker, force);
+                var result = _deferRelayClose && blocker.IsRelay && !force
+                    ? UpdateBlockerCloseResult.StillRunning : await _close(blocker, force);
+                return (Blocker: blocker, Result: result);
+            }));
+            foreach (var (blocker, result) in results)
+            {
                 _results.Add((blocker, result));
                 _remaining.Add((blocker.Pid, blocker.Started));
             }

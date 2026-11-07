@@ -19,7 +19,8 @@ internal sealed class TestHost : IUpdateDialogHost, IUpdateBlockerFinder
     public object? CheckOwner { get; private set; }
     public IUpdateLog Log { get; } = new SilentUpdateLog();
     public IUpdateBlockerClassifier Classifier { get; } = new ProgramClassifier();
-    public IUpdateBlockerFinder Finder => this;
+    public IUpdateBlockerFinder? FinderOverride { get; set; }
+    public IUpdateBlockerFinder Finder => FinderOverride ?? this;
     public string LatestReleasePage => "https://example.invalid/releases/latest";
     public string ReleasePage(string version) => $"https://example.invalid/releases/{version}";
     public Task<UpdatePreparationCheck> CheckAsync(object owner, CancellationToken token)

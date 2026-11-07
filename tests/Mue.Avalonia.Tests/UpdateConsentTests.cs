@@ -72,32 +72,36 @@ public sealed class UpdateConsentTests
         using var service = new UpdateService(backend);
         await service.CheckAsync();
         var host = new TestHost { Blockers = hasBlockers ? [Fixtures.Blocker()] : [] };
+        var shown = new TaskCompletionSource<UpdateBlockersDialog>();
         UpdatesDialog? owner = null;
-        owner = new UpdatesDialog(service, host, async dialog =>
+        owner = new UpdatesDialog(service, host, dialog =>
         {
             var result = dialog.ShowDialog<bool?>(owner ?? throw new InvalidOperationException());
+            shown.SetResult(dialog);
+            return result;
+        });
+        owner.Show();
+        var install = owner.InstallAsync();
+        var dialog = await shown.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        try
+        {
             Assert.True(Fixtures.Control<Button>(dialog, "PostponeButton").IsCancel);
             if (dismissal == "postpone") Fixtures.Click(dialog, "PostponeButton");
             else if (dismissal == "close") dialog.Close();
             else
             {
                 dialog.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null);
-                dialog.KeyRelease(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null);
             }
             Assert.False(dialog.IsVisible);
             Assert.NotEqual(true, dialog.Accepted);
-            return await result;
-        });
-        owner.Show();
-        try
-        {
-            await owner.InstallAsync();
+            await install;
             Assert.DoesNotContain("prepare", host.Calls);
             Assert.DoesNotContain("final", host.Calls);
             Assert.Equal(0, backend.Applies);
             Assert.Equal(UpdateState.Ready, service.State);
+            Assert.Null(host.Error);
         }
-        finally { owner.Close(); }
+        finally { dialog.Close(); await install; owner.Close(); }
     }
 
     [AvaloniaTheory]
@@ -168,14 +172,14 @@ public sealed class UpdateConsentTests
     [InlineData(UpdateShutdownBehavior.AskToQuit, true)]
     public async Task ClosingSelectedOnlyAcceptsAlreadyIgnoredRemainingProcesses(UpdateShutdownBehavior behavior, bool newProcess)
     {
-        var host = new TestHost { Blockers = [Fixtures.Blocker(pid: 1), Fixtures.Blocker(pid: 2, selected: false)] };
+        var host = new TestHost { Blockers = [Fixtures.Blocker(pid: 1), Fixtures.Blocker(pid: 2, selected: false, started: 100)] };
         var closed = new List<int>();
         host.CloseOverride = (blocker, _) =>
         {
             closed.Add(blocker.Pid);
             host.Blockers = newProcess
-                ? [Fixtures.Blocker(pid: 2, selected: false), Fixtures.Blocker(pid: 3, selected: false)]
-                : [Fixtures.Blocker(pid: 2, selected: false)];
+                ? [Fixtures.Blocker(pid: 2, selected: false, started: 100), Fixtures.Blocker(pid: 3, selected: false)]
+                : [Fixtures.Blocker(pid: 2, selected: false, started: 100)];
             return Task.FromResult(UpdateBlockerCloseResult.Closed);
         };
         var dialog = Dialog(host, behavior, host.Summary);
@@ -184,7 +188,7 @@ public sealed class UpdateConsentTests
         {
             await dialog.CloseSelectedAsync();
             Assert.Equal(new[] { 1 }, closed);
-            Assert.Equal(new[] { (2, 0L) }, dialog.IgnoredBlockers);
+            Assert.Equal(new[] { (2, 100L) }, dialog.IgnoredBlockers);
             Assert.Equal(!newProcess, dialog.Accepted == true);
             Assert.Equal(newProcess, dialog.IsVisible);
         }
@@ -196,6 +200,8 @@ public sealed class UpdateConsentTests
     [InlineData(UpdateShutdownBehavior.AskToQuit, 43, 100)]
     [InlineData(UpdateShutdownBehavior.Kill, 42, 200)]
     [InlineData(UpdateShutdownBehavior.AskToQuit, 42, 200)]
+    [InlineData(UpdateShutdownBehavior.Kill, 42, 0)]
+    [InlineData(UpdateShutdownBehavior.AskToQuit, 42, 0)]
     public async Task FinalScanRejectsAnIdentityNotAccepted(UpdateShutdownBehavior behavior, int pid, long started)
     {
         var backend = Fixtures.Backend();
@@ -237,6 +243,59 @@ public sealed class UpdateConsentTests
             Assert.Empty(host.Calls);
         }
         finally { dialog.Close(); }
+    }
+
+    [AvaloniaTheory]
+    [InlineData(UpdateShutdownBehavior.Kill, false)]
+    [InlineData(UpdateShutdownBehavior.Kill, true)]
+    [InlineData(UpdateShutdownBehavior.AskToQuit, false)]
+    [InlineData(UpdateShutdownBehavior.AskToQuit, true)]
+    public async Task UnknownIdentityCannotBeIgnoredAcrossScans(UpdateShutdownBehavior behavior, bool closeOther)
+    {
+        var backend = Fixtures.Backend();
+        backend.ShutdownBehavior = behavior;
+        using var service = new UpdateService(backend);
+        await service.CheckAsync();
+        var unknown = Fixtures.Blocker(pid: 2, selected: false, unavailable: true, started: 0);
+        var host = new TestHost { Blockers = closeOther ? [Fixtures.Blocker(pid: 1, started: 100), unknown] : [unknown] };
+        host.CloseOverride = (_, _) =>
+        {
+            host.Blockers = [Fixtures.Blocker(pid: 2, selected: false, unavailable: true, started: 0)];
+            return Task.FromResult(UpdateBlockerCloseResult.Closed);
+        };
+        var shown = new TaskCompletionSource<UpdateBlockersDialog>();
+        UpdatesDialog? window = null;
+        window = new UpdatesDialog(service, host, dialog =>
+        {
+            var result = dialog.ShowDialog<bool?>(window ?? throw new InvalidOperationException());
+            shown.SetResult(dialog);
+            return result;
+        });
+        window.Show();
+        var install = window.InstallAsync();
+        var dialog = await shown.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        try
+        {
+            Assert.Equal(closeOther, Fixtures.Control<Button>(dialog, "CloseButton").IsEnabled);
+            await dialog.CloseSelectedAsync();
+            Assert.Empty(dialog.IgnoredBlockers);
+            Assert.Null(dialog.Accepted);
+            host.Blockers = [Fixtures.Blocker(pid: 2, selected: false, unavailable: true, started: 0)];
+            await dialog.RetryAsync();
+            await dialog.CloseSelectedAsync();
+            Assert.False(Fixtures.Control<Button>(dialog, "CloseButton").IsEnabled);
+            Assert.Empty(dialog.IgnoredBlockers);
+            Assert.Null(dialog.Accepted);
+            Assert.True(dialog.IsVisible);
+            Fixtures.Click(dialog, "PostponeButton");
+            await install;
+            Assert.DoesNotContain("prepare", host.Calls);
+            Assert.DoesNotContain("final", host.Calls);
+            Assert.Equal(closeOther ? 1 : 0, host.Calls.Where(call => call == "close").Count());
+            Assert.Equal(0, backend.Applies);
+            Assert.Null(host.Error);
+        }
+        finally { dialog.Close(); await install; window.Close(); }
     }
 
     private static UpdateBlockersDialog Dialog(TestHost host, UpdateShutdownBehavior behavior, string? summary = null) =>

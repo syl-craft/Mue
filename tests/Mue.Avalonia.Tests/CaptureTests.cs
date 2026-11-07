@@ -79,7 +79,7 @@ public sealed class CaptureTests
             }
             foreach (var confirming in new[] { false, true })
             {
-                var host = new TestHost { Blockers = confirming ? [] : [Fixtures.Blocker(selected: false)] };
+                var host = new TestHost { Blockers = confirming ? [] : [Fixtures.Blocker(selected: false, started: 100)] };
                 var dialog = new UpdateBlockersDialog(UpdateBlockerQuery.ForDirectory(Path.GetTempPath()), new(host.Blockers),
                     host, UpdateShutdownBehavior.Kill, summary: host.Summary) { Width = width, Height = height };
                 dialog.Show();
