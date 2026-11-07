@@ -11,5 +11,6 @@
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" PrivateAssets="all" />
     <Using Include="Xunit" />
     <ProjectReference Include="../../src/Mue.Wpf/Mue.Wpf.csproj" />
+    <Compile Include="../Shared/ContrastPairs.cs" Link="Shared/ContrastPairs.cs" />
   </ItemGroup>
 </Project>

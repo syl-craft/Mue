@@ -6,5 +6,6 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../Mue/Mue.csproj" />
+    <InternalsVisibleTo Include="Mue.Tests.Wpf" />
   </ItemGroup>
 </Project>

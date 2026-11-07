@@ -267,4 +267,13 @@
   <data name="Update_ScanIncomplete" xml:space="preserve">
     <value>Detection incomplete: some processes could not be identified.</value>
   </data>
+  <data name="Update_ConfirmHelpForced" xml:space="preserve">
+    <value>Installing closes {AppName}. Programs that start using its files in the meantime will be forced to stop, without saving their work.</value>
+  </data>
+  <data name="Update_ConfirmHelpAskToQuit" xml:space="preserve">
+    <value>Installing closes {AppName}. Programs that start using its files in the meantime will be asked to quit and may be interrupted without saving their work.</value>
+  </data>
+  <data name="Update_Download" xml:space="preserve">
+    <value>Download</value>
+  </data>
 </root>

@@ -1,45 +1,8 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    <SolidColorBrush x:Key="Brush.Accent" Color="#0067B8"/>
-    <SolidColorBrush x:Key="Brush.AccentBorderSoft" Color="#A9CDE9"/>
-    <SolidColorBrush x:Key="Brush.AccentSelected" Color="#CDE5F7"/>
-    <SolidColorBrush x:Key="Brush.AccentText" Color="#005A9E"/>
-    <SolidColorBrush x:Key="Brush.AccentTint" Color="#EDF6FC"/>
-    <SolidColorBrush x:Key="Brush.AccentTintStrong" Color="#DFEFFA"/>
-    <SolidColorBrush x:Key="Brush.Border" Color="#D5D5D5"/>
-    <SolidColorBrush x:Key="Brush.Danger" Color="#B42318"/>
-    <SolidColorBrush x:Key="Brush.DangerBorder" Color="#E8B4AF"/>
-    <SolidColorBrush x:Key="Brush.DangerSurface" Color="#FFF0EE"/>
-    <SolidColorBrush x:Key="Brush.Separator" Color="#E5E5E5"/>
-    <SolidColorBrush x:Key="Brush.Surface" Color="#F7F7F7"/>
-    <SolidColorBrush x:Key="Brush.SurfaceCard" Color="#FFFFFF"/>
-    <SolidColorBrush x:Key="Brush.SurfaceMuted" Color="#ECECEC"/>
-    <SolidColorBrush x:Key="Brush.Text" Color="#202020"/>
-    <SolidColorBrush x:Key="Brush.TextDetail" Color="#606060"/>
-    <SolidColorBrush x:Key="Brush.TextDisabled" Color="#707070"/>
-    <SolidColorBrush x:Key="Brush.TextLabel" Color="#505050"/>
-    <SolidColorBrush x:Key="Brush.TextSmall" Color="#505050"/>
-    <SolidColorBrush x:Key="Brush.TextSubtle" Color="#606060"/>
-    <SolidColorBrush x:Key="Brush.WarnTextAlt" Color="#795500"/>
-    <Style x:Key="SecondaryButton" TargetType="Button">
-        <Setter Property="Padding" Value="14,7"/>
-        <Setter Property="Foreground" Value="{DynamicResource Brush.Text}"/>
-        <Setter Property="Background" Value="{DynamicResource Brush.SurfaceCard}"/>
-        <Setter Property="BorderBrush" Value="{DynamicResource Brush.Border}"/>
-    </Style>
-    <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource SecondaryButton}">
-        <Setter Property="Foreground" Value="{DynamicResource Brush.AccentText}"/>
-        <Setter Property="Background" Value="{DynamicResource Brush.AccentTint}"/>
-        <Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent}"/>
-    </Style>
-    <Style x:Key="DangerButton" TargetType="Button" BasedOn="{StaticResource SecondaryButton}">
-        <Setter Property="Foreground" Value="{DynamicResource Brush.Danger}"/>
-        <Setter Property="Background" Value="{DynamicResource Brush.DangerSurface}"/>
-        <Setter Property="BorderBrush" Value="{DynamicResource Brush.DangerBorder}"/>
-    </Style>
-    <Style x:Key="DialogFooter" TargetType="Border">
-        <Setter Property="Background" Value="{DynamicResource Brush.SurfaceCard}"/>
-        <Setter Property="BorderBrush" Value="{DynamicResource Brush.Separator}"/>
-        <Setter Property="BorderThickness" Value="0,1,0,0"/>
-    </Style>
+    <!-- Jeu clair complet, conservé pour les hôtes qui chargeaient ce dictionnaire en 0.3.0. -->
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="/Mue.Wpf;component/Themes/Defaults.Light.xaml"/>
+        <ResourceDictionary Source="/Mue.Wpf;component/Themes/Defaults.Styles.xaml"/>
+    </ResourceDictionary.MergedDictionaries>
 </ResourceDictionary>

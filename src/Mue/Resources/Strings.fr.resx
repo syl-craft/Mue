@@ -267,4 +267,13 @@
   <data name="Update_ScanIncomplete" xml:space="preserve">
     <value>Détection incomplète : certains processus n&apos;ont pas pu être identifiés.</value>
   </data>
+  <data name="Update_ConfirmHelpForced" xml:space="preserve">
+    <value>L’installation ferme {AppName}. Les programmes qui utiliseraient ses fichiers d’ici là seront arrêtés de force, sans enregistrer leur travail.</value>
+  </data>
+  <data name="Update_ConfirmHelpAskToQuit" xml:space="preserve">
+    <value>L’installation ferme {AppName}. Les programmes qui utiliseraient ses fichiers d’ici là recevront une demande de quitter et pourront être interrompus sans enregistrer leur travail.</value>
+  </data>
+  <data name="Update_Download" xml:space="preserve">
+    <value>Télécharger</value>
+  </data>
 </root>

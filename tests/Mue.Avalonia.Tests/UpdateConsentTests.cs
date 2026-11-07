@@ -40,7 +40,9 @@ public sealed class UpdateConsentTests
                 Assert.Equal(UpdateTexts.T("Update_ConfirmTitle"), dialog.Title);
                 Assert.Equal(UpdateTexts.T("Update_ConfirmInstall"), Fixtures.Control<Button>(dialog, "CloseButton").Content);
                 Assert.Equal(summary, Fixtures.Control<TextBlock>(dialog, "PreparationSummary").Text);
-                Assert.False(Fixtures.Control<TextBlock>(dialog, "HelpText").IsVisible);
+                // 0.4.0 : en Kill (backend de test), la confirmation prévient que l'installateur arrêtera un programme apparu entre-temps.
+                Assert.True(Fixtures.Control<TextBlock>(dialog, "HelpText").IsVisible);
+                Assert.Equal(UpdateTexts.T("Update_ConfirmHelpForced"), Fixtures.Control<TextBlock>(dialog, "HelpText").Text);
                 Assert.DoesNotContain("prepare", host.Calls);
                 await dialog.CloseSelectedAsync();
             }

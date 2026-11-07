@@ -1,0 +1,25 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- Styles communs aux jeux clair et sombre : leurs couleurs passent par les brosses dynamiques. -->
+    <Style x:Key="SecondaryButton" TargetType="Button">
+        <Setter Property="Padding" Value="14,7"/>
+        <Setter Property="Foreground" Value="{DynamicResource Brush.Text}"/>
+        <Setter Property="Background" Value="{DynamicResource Brush.SurfaceCard}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource Brush.Border}"/>
+    </Style>
+    <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource SecondaryButton}">
+        <Setter Property="Foreground" Value="{DynamicResource Brush.AccentText}"/>
+        <Setter Property="Background" Value="{DynamicResource Brush.AccentTint}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent}"/>
+    </Style>
+    <Style x:Key="DangerButton" TargetType="Button" BasedOn="{StaticResource SecondaryButton}">
+        <Setter Property="Foreground" Value="{DynamicResource Brush.Danger}"/>
+        <Setter Property="Background" Value="{DynamicResource Brush.DangerSurface}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource Brush.DangerBorder}"/>
+    </Style>
+    <Style x:Key="DialogFooter" TargetType="Border">
+        <Setter Property="Background" Value="{DynamicResource Brush.SurfaceCard}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource Brush.Separator}"/>
+        <Setter Property="BorderThickness" Value="0,1,0,0"/>
+    </Style>
+</ResourceDictionary>

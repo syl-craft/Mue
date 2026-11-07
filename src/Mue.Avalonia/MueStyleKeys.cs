@@ -1,15 +1,9 @@
 namespace Mue.Avalonia;
 
+/// <summary>Conservé pour les hôtes 0.3.0 : renvoie à la liste unique de <see cref="Mue.UpdateStyleKeys"/>.</summary>
 public static class MueStyleKeys
 {
-    public static IReadOnlyList<string> Required { get; } = Array.AsReadOnly(new[]
-    {
-        "Brush.Accent", "Brush.AccentBorderSoft", "Brush.AccentSelected", "Brush.AccentText", "Brush.AccentTint",
-        "Brush.AccentTintStrong", "Brush.Border", "Brush.Danger", "Brush.DangerBorder", "Brush.DangerSurface",
-        "Brush.Separator", "Brush.Surface", "Brush.SurfaceCard", "Brush.SurfaceMuted", "Brush.Text", "Brush.TextDetail",
-        "Brush.TextDisabled", "Brush.TextLabel", "Brush.TextSmall", "Brush.TextSubtle", "Brush.WarnTextAlt",
-        "PrimaryButton", "SecondaryButton", "DangerButton", "DialogFooter",
-    });
+    public static IReadOnlyList<string> Required => Mue.UpdateStyleKeys.Required;
 
-    public static IReadOnlyList<string> Missing(Func<object, object?> find) => Required.Where(key => find(key) == null).ToArray();
+    public static IReadOnlyList<string> Missing(Func<object, object?> find) => Mue.UpdateStyleKeys.Missing(find);
 }

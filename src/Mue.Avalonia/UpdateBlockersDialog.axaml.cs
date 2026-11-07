@@ -23,6 +23,7 @@ public partial class UpdateBlockersDialog : Window
     public IReadOnlySet<(int Pid, long Started)> IgnoredBlockers => _ignored;
     private bool CanIgnore => _shutdownBehavior != UpdateShutdownBehavior.Refuse;
     private bool Confirming => _requiresConfirmation && _blockers.Count == 0;
+    private string ConfirmHelpKey => _shutdownBehavior == UpdateShutdownBehavior.Kill ? "Update_ConfirmHelpForced" : "Update_ConfirmHelpAskToQuit";
     // Une liaison Avalonia ne tient sa source que faiblement : sans ce champ, un groupe peut être collecté
     // et la case décochée n'a plus d'effet.
     private IReadOnlyList<UpdateBlockerGroup> _groups = [];
@@ -149,8 +150,9 @@ public partial class UpdateBlockersDialog : Window
         Title = UpdateTexts.T(Confirming ? "Update_ConfirmTitle" : "Update_BlockedTitle");
         StateLabel.Text = UpdateTexts.T(incomplete ? "Update_IncompleteState" : "Update_StatePreparing").ToUpper(UpdateTexts.Formatting);
         Heading.Text = Confirming ? UpdateTexts.T("Update_ConfirmTitle") : incomplete ? UpdateTexts.F("Update_IncompleteTitle", _remaining.Count) : UpdateTexts.T("Update_BlockedTitle");
-        HelpText.IsVisible = !Confirming;
-        HelpText.Text = UpdateTexts.T(_shutdownBehavior switch
+        // En confirmation, l'aide reste visible si l'installateur peut arrêter un programme apparu entre-temps.
+        HelpText.IsVisible = Confirming == false || _shutdownBehavior != UpdateShutdownBehavior.Refuse;
+        HelpText.Text = UpdateTexts.T(Confirming ? ConfirmHelpKey : _shutdownBehavior switch
         {
             UpdateShutdownBehavior.Kill => incomplete ? "Update_IncompleteHelpForced" : "Update_BlockedHelpForced",
             UpdateShutdownBehavior.AskToQuit => incomplete ? "Update_IncompleteHelpAskToQuit" : "Update_BlockedHelpAskToQuit",

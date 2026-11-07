@@ -21,6 +21,7 @@ public partial class UpdatesDialog : Window
     private bool _preparing;
     private bool _installing;
     private bool _closed;
+    private readonly bool _separateInstallStep;
 
     public UpdatesDialog(UpdateService updates, IUpdateDialogHost host,
         Func<UpdateBlockersDialog, Task<bool?>>? showBlockers = null)
@@ -44,6 +45,14 @@ public partial class UpdatesDialog : Window
         RefreshDisplay();
     }
 
+    /// <summary>Surcharge de la 0.4.0 : le constructeur 0.3.0 reste inchangé.</summary>
+    public UpdatesDialog(UpdateService updates, IUpdateDialogHost host, UpdatesDialogOptions options)
+        : this(updates, host, options.ShowBlockers)
+    {
+        _separateInstallStep = options.SeparateInstallStep;
+        RefreshDisplay();
+    }
+
     private void Clock_Tick(object? sender, EventArgs e) => LastChecked.Text = _updates.LastChecked;
     private void Updates_Changed(object? sender, PropertyChangedEventArgs e)
     {
@@ -55,6 +64,8 @@ public partial class UpdatesDialog : Window
     {
         if (_closed) return;
         InstallButton.Content = UpdateTexts.T(_updates.Presentation.PrimaryKey == "Common_Close" ? "Update_CloseWindow" : _updates.Presentation.PrimaryKey);
+        // En deux étapes, une version disponible se télécharge d'abord : « Download » au lieu de « Download and install ».
+        if (_separateInstallStep && _updates.State == UpdateState.Available) InstallButton.Content = UpdateTexts.T("Update_Download");
         SecondaryButton.Content = UpdateTexts.T(_updates.Presentation.SecondaryKey == "Common_Close" ? "Update_CloseWindow" : _updates.Presentation.SecondaryKey);
         if (_updates.State == UpdateState.Checking) SetPreparationSummary(null);
         InstallButton.Bind(ThemeProperty, new DynamicResourceExtension(_updates.PrimaryAccent ? "PrimaryButton" : "SecondaryButton"));
@@ -141,7 +152,10 @@ public partial class UpdatesDialog : Window
         _installing = true;
         try
         {
+            var downloadedBefore = _updates.State == UpdateState.Ready;
             if (!await _updates.DownloadAsync() || _closed) return;
+            // En deux étapes, le téléchargement s'arrête sur « New version ready » : l'installation est un second clic.
+            if (_separateInstallStep && downloadedBefore == false) return;
             _preparing = true;
             _updates.BeginPreparation();
             var check = await _host.CheckAsync(this, _lifetime.Token);

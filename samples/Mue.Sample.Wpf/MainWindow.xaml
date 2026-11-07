@@ -1,0 +1,11 @@
+<Window x:Class="Mue.Sample.Wpf.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:mue="clr-namespace:Mue.Wpf;assembly=Mue.Wpf"
+        Title="Notebook" Width="520" Height="200" Background="{DynamicResource Brush.Surface}">
+    <DockPanel Margin="16" LastChildFill="False">
+        <mue:UpdateBadge x:Name="Badge" DockPanel.Dock="Top" HorizontalAlignment="Right"
+                         VersionIndicator="{Binding VersionIndicator}" Status="{Binding Status}" HasRelease="{Binding HasRelease}"
+                         Click="Badge_Click"/>
+        <TextBlock DockPanel.Dock="Top" Margin="0,24,0,0" Foreground="{DynamicResource Brush.TextLabel}" TextWrapping="Wrap"
+                   Text="Demo data only: the update is simulated by FakeUpdateBackend."/>
+    </DockPanel>
+</Window>
