@@ -52,18 +52,29 @@ public sealed class VelopackWithoutLocatorTests
         using var http = new HttpClient(handler);
         var time = new ManualTimeProvider();
         var schedule = new MemoryUpdateSchedule { Automatic = true };
+        var cycles = 0;
         using var service = new UpdateService(new VelopackBackend(Options, http, locator: null),
-            new() { Time = time, Schedule = schedule });
+            new() { Time = time, Schedule = schedule, CanSearch = () => { cycles++; return true; } });
 
         Assert.Equal(UpdateState.Unavailable, service.State);
         service.StartPolling();
+        // Le planificateur interroge CanSearch une fois par cycle : deux cycles prouvent que la boucle a tourné.
         time.Advance(TimeSpan.FromSeconds(20));
+        await Until(() => cycles >= 1);
         time.Advance(TimeSpan.FromHours(7));
+        await Until(() => cycles >= 2);
         await service.CheckAsync();
 
         Assert.Equal(UpdateState.Unavailable, service.State);
         Assert.Equal(default, schedule.LastCheck);
         Assert.Equal(0, handler.Requests);
+    }
+
+    private static async Task Until(Func<bool> condition)
+    {
+        var limit = DateTime.UtcNow.AddSeconds(5);
+        while (condition() == false && DateTime.UtcNow < limit) await Task.Delay(10);
+        Assert.True(condition());
     }
 
     private sealed class CountingHandler : HttpMessageHandler
