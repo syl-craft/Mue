@@ -323,7 +323,8 @@ $p.ExitCode
   remplace la redirection et le JSON est perdu.
 - **Appeler l'exe de `current\`.** Le lanceur stable à la racine d'une installation Velopack (le stub) démarre l'appli
   sans l'attendre et ne rend pas son code de sortie (constaté par DockPad sur Velopack 1.2.161). Les scripts appellent
-  `%LocalAppData%\MonAppli\current\MonAppli.exe update --json`.
+  `%LocalAppData%\<packId>\current\MonAppli.exe update --json`. Le dossier d'installation est l'identifiant du paquet
+  Velopack, qui peut différer du nom de l'appli et de son dossier de profil (PicaLite : `%LocalAppData%\PicaLiteApp`).
 - **Une appli de la zone de notification** peut répondre `StillRunning` à une fermeture douce si sa fenêtre se cache au
   lieu de quitter. L'hôte gère ce cas : relayer `update` à l'instance ouverte, ou la faire quitter sur une fermeture douce.
 - **macOS :** le mode silencieux n'est pas encore vérifié sur une vraie machine.
