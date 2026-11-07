@@ -38,19 +38,20 @@ clip({
     setBadge(x.app.badge, t >= 8 ? { version: '1.3.0' } : { release: t >= 1.0, hover: t >= 1.55 && t < 1.85, down: t >= 1.85 && t < 1.95 });
     x.app.badge.style.transform = `scale(${1 + .18 * Math.sin(Math.PI * prog(t, 1.0, 1.35, E.out))})`;
 
-    // Dialogue : disponible, téléchargement, prête, installation.
+    // Dialogue : un seul clic sur « Download and install » enchaîne téléchargement, préparation et installation
+    // (UpdatesDialog.Install_Click, sans résumé ni bloqueur).
     renderPop(x.dlg.win, t, [2.05, 2.4], [6.45, 6.7]);
     const dl = prog(t, 3.0, 4.9, E.inOut);
-    renderUpdates(x.dlg, t < 2.95 ? 'available' : t < 5.0 ? 'downloading' : t < 6.05 ? 'ready' : 'installing', dl);
+    renderUpdates(x.dlg, t < 2.95 ? 'available' : t < 5.0 ? 'downloading' : t < 5.6 ? 'preparing' : 'installing', dl);
 
     renderRestart(x.restart, t, 6.85, 8.2);
 
     renderCursor(x.cur, t, [
       [.3, p.badge.x - 260, p.badge.y + 150], [1.35, p.badge.x, p.badge.y], [2.35, p.badge.x, p.badge.y],
-      [2.75, p.b1.x, p.b1.y], [5.9, p.b1.x, p.b1.y], [6.45, p.b1.x, p.b1.y], [6.9, 1500, 900],
-    ], [1.9, 2.85, 5.95], [.3, 6.9]);
+      [2.75, p.b1.x, p.b1.y], [3.4, p.b1.x, p.b1.y], [4.2, 1500, 900],
+    ], [1.9, 2.85], [.3, 4.2]);
 
-    x.leg(t, [[.4, 2.8, 'The app finds the new version'], [2.9, 5.95, 'Download first, install when you say'], [6.05, 9.8, 'Back on 1.3.0 in seconds']]);
+    x.leg(t, [[.4, 2.8, 'The app finds the new version'], [2.9, 6.6, 'One click: download, then install'], [6.7, 9.8, 'Back on 1.3.0 in seconds']]);
   },
 });
 </script></body></html>
