@@ -60,8 +60,10 @@ public sealed class UpdateBadge : Button
     private void RefreshBrushes()
     {
         if (_badge == null) return;
-        var background = !HasRelease ? "Brush.SurfaceCard" : IsPressed ? "Brush.AccentSelected"
-            : IsPointerOver ? "Brush.AccentTintStrong" : "Brush.AccentTint";
+        // Sans nouvelle version, le clic ouvre aussi la fenêtre : retour au survol et à l'appui.
+        var background = !HasRelease
+            ? IsPressed ? "Brush.Border" : IsPointerOver ? "Brush.SurfaceMuted" : "Brush.SurfaceCard"
+            : IsPressed ? "Brush.AccentSelected" : IsPointerOver ? "Brush.AccentTintStrong" : "Brush.AccentTint";
         _badge.Bind(Border.BackgroundProperty, new DynamicResourceExtension(background));
         _badge.Bind(Border.BorderBrushProperty, new DynamicResourceExtension(IsFocused ? "Brush.Accent"
             : HasRelease ? "Brush.AccentBorderSoft" : "Brush.Border"));

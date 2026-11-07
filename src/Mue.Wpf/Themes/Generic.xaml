@@ -28,6 +28,15 @@
                             <MultiTrigger.Conditions><Condition Property="HasRelease" Value="True"/><Condition Property="IsMouseOver" Value="True"/></MultiTrigger.Conditions>
                             <Setter TargetName="Badge" Property="Background" Value="{DynamicResource Brush.AccentTintStrong}"/>
                         </MultiTrigger>
+                        <!-- Sans nouvelle version, le clic ouvre aussi la fenêtre : retour au survol et à l'appui. -->
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions><Condition Property="HasRelease" Value="False"/><Condition Property="IsMouseOver" Value="True"/></MultiTrigger.Conditions>
+                            <Setter TargetName="Badge" Property="Background" Value="{DynamicResource Brush.SurfaceMuted}"/>
+                        </MultiTrigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions><Condition Property="HasRelease" Value="False"/><Condition Property="IsPressed" Value="True"/></MultiTrigger.Conditions>
+                            <Setter TargetName="Badge" Property="Background" Value="{DynamicResource Brush.Border}"/>
+                        </MultiTrigger>
                         <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Badge" Property="BorderBrush" Value="{DynamicResource Brush.Accent}"/></Trigger>
                         <MultiTrigger>
                             <MultiTrigger.Conditions><Condition Property="HasRelease" Value="True"/><Condition Property="IsPressed" Value="True"/></MultiTrigger.Conditions>
