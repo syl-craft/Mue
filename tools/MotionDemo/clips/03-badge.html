@@ -1,0 +1,48 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Mue — Version badge</title>
+<link rel="stylesheet" href="../shared/mue.css"></head>
+<body><div id="stage"></div>
+<script type="module">
+import { clip, prog, E, el, lerp } from '../shared/engine.js';
+import { TO, stage, setCamera, hostApp, setBadge, updatesDialog, renderUpdates, cursor, renderCursor, legend, centerOf, renderPop } from '../shared/ui.js';
+
+const AS = 1.3, AW = 1240, AH = 640, AX = (1920 - AW * AS) / 2, AY = 90;
+const S = 1.6, DX = (1920 - 580 * S) / 2, DY = AY + (AH * AS - 540 * S) / 2;
+
+clip({
+  duration: 8,
+  async build() {
+    const { st, camera } = stage();
+    const app = hostApp(camera, { x: AX, y: AY, s: AS, w: AW, h: AH });
+    const tip = el(`<div class="tip" style="opacity:0">Version ${TO} is available.</div>`);
+    camera.appendChild(tip);
+    const layer = el('<div class="layer" style="z-index:40"></div>');
+    camera.appendChild(layer);
+    const dlg = updatesDialog(layer, { x: DX, y: DY, s: S });
+    renderUpdates(dlg, 'available');
+    const b = centerOf(app.badge);
+    tip.style.left = `${b.x - 70}px`; tip.style.top = `${b.y + 26}px`;
+    return { st, camera, app, tip, dlg, b, cur: cursor(camera), leg: legend(st) };
+  },
+
+  render(t, x) {
+    const { b } = x;
+    // Très gros plan sur la barre d'outils, puis plan large à l'ouverture du dialogue.
+    const z = prog(t, 5.1, 5.8, E.inOut);
+    setCamera(x.camera, lerp(3.2, 1, z), lerp(b.x - 60, 960, z), lerp(b.y + 30, 540, z), lerp(1100, 960, z), lerp(440, 540, z));
+    x.app.win.style.opacity = prog(t, 0, .4, E.out);
+
+    // Recherche en arrière-plan : la pastille passe de la version seule à la transition, avec un rebond.
+    const hover = t >= 3.3 && t < 4.75, down = t >= 4.75 && t < 4.9;
+    setBadge(x.app.badge, { release: t >= 1.6, hover, down });
+    x.app.badge.style.transform = `scale(${1 + .22 * Math.sin(Math.PI * prog(t, 1.6, 2.0, E.out))})`;
+    x.tip.style.opacity = prog(t, 3.7, 3.9) * (1 - prog(t, 4.7, 4.8));
+
+    renderPop(x.dlg.win, t, [5.25, 5.6], [99, 100]);
+
+    renderCursor(x.cur, t, [[2.4, b.x + 160, b.y + 120], [3.3, b.x + 4, b.y + 2], [5.4, b.x + 4, b.y + 2], [6.2, 1500, 900]], [4.8], [2.4, 7.9]);
+
+    x.leg(t, [[.3, 3.2, 'Your version, until a new one is out'], [3.3, 5.2, `v1.2.0 → ${TO}: one click away`], [5.3, 7.9, 'The badge opens the update window']]);
+  },
+});
+</script></body></html>

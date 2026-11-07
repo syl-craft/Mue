@@ -1,0 +1,149 @@
+/* Jetons des clips Mue. Les noms reprennent les clés Brush.* de MueStyleKeys ; les valeurs remplacent
+   le bleu de Defaults.xaml par l'ambre du logo (#D9771A, #F0A23A), comme le ferait une appli hôte. */
+:root, :root[data-theme="light"] {
+  --accent: #D9771A; --accent-text: #9A4F0C; --accent-tint: #FDF3E7; --accent-tint-strong: #FBE6CC;
+  --accent-selected: #F8DCB6; --accent-border-soft: #EDC38E;
+  --primary-bg: #C2650F; --primary-text: #FFFFFF;
+  --border: #D5D5D5; --separator: #E5E5E5;
+  --surface: #F7F7F7; --surface-card: #FFFFFF; --surface-muted: #ECECEC;
+  --text: #202020; --text-label: #505050; --text-detail: #606060; --text-subtle: #606060;
+  --text-disabled: #707070; --text-small: #505050; --warn-text: #795500;
+  --danger: #B42318;
+  --chrome: #EFEFEF; --chrome-text: #1B1B1B;
+  --app-side: #F1EEEA; --app-line: #E4E0DA; --app-ink: #2B2B2B; --app-ghost: #E7E3DE; --app-sel: #FBE6CC;
+  --window-shadow: 0 24px 70px rgba(60,40,20,.22), 0 4px 14px rgba(60,40,20,.10);
+  --desktop: radial-gradient(1400px 900px at 18% 8%, #FBEBD8 0%, transparent 60%),
+             radial-gradient(1200px 900px at 92% 96%, #EFE9E1 0%, transparent 60%),
+             linear-gradient(135deg, #F6EFE6 0%, #F2EFEB 50%, #EEEAE6 100%);
+  --legend-bg: rgba(255,255,255,.84); --legend-text: #1B1B1B; --legend-border: rgba(0,0,0,.06);
+}
+:root[data-theme="dark"] {
+  --accent: #F0A23A; --accent-text: #F5B865; --accent-tint: #2E2316; --accent-tint-strong: #3A2B18;
+  --accent-selected: #4A3519; --accent-border-soft: #6B4A20;
+  --primary-bg: #F0A23A; --primary-text: #1B1B1B;
+  --border: #3D3D3D; --separator: #333333;
+  --surface: #1E1E1E; --surface-card: #262626; --surface-muted: #303030;
+  --text: #F0F0F0; --text-label: #B8B8B8; --text-detail: #9E9E9E; --text-subtle: #A0A0A0;
+  --text-disabled: #8A8A8A; --text-small: #B8B8B8; --warn-text: #E8B65A;
+  --danger: #FF6B5E;
+  --chrome: #202020; --chrome-text: #F2F2F2;
+  --app-side: #1A1A1A; --app-line: #2C2C2C; --app-ink: #E6E6E6; --app-ghost: #2E2E2E; --app-sel: #3A2B18;
+  --window-shadow: 0 24px 70px rgba(0,0,0,.55), 0 4px 14px rgba(0,0,0,.35);
+  --desktop: radial-gradient(1400px 900px at 18% 8%, #2A1F14 0%, transparent 60%),
+             radial-gradient(1200px 900px at 92% 96%, #1E1B22 0%, transparent 60%),
+             linear-gradient(135deg, #161412 0%, #151517 50%, #171518 100%);
+  --legend-bg: rgba(30,30,30,.84); --legend-text: #F2F2F2; --legend-border: rgba(255,255,255,.08);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: #000; overflow: hidden; }
+body { font-family: "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+.mono { font-family: Consolas, "Cascadia Mono", monospace; }
+
+#stage { position: relative; width: 1920px; height: 1080px; overflow: hidden; background: var(--desktop); }
+#camera { position: absolute; inset: 0; transform-origin: 0 0; }
+.layer { position: absolute; left: 0; top: 0; }
+
+/* ---------- Fenêtre Windows 11 ---------- */
+.win { position: absolute; background: var(--surface); color: var(--text); border-radius: 8px; overflow: hidden;
+  box-shadow: var(--window-shadow); border: 1px solid rgba(128,128,128,.25); transform-origin: 50% 50%; }
+.win .tb { height: 32px; background: var(--chrome); color: var(--chrome-text); display: flex; align-items: center;
+  font-size: 12px; padding-left: 14px; gap: 10px; }
+.win .tb .ttl { flex: 1; }
+.win .tb .cap { width: 46px; height: 32px; display: flex; align-items: center; justify-content: center; font-size: 11px; opacity: .8; }
+
+/* ---------- Appli hôte de démonstration ---------- */
+.app .tool { height: 52px; display: flex; align-items: center; gap: 10px; padding: 0 16px; border-bottom: 1px solid var(--app-line);
+  background: var(--surface-card); }
+.app .tool .t { font-weight: 600; font-size: 15px; color: var(--app-ink); }
+.app .tool .sp { flex: 1; }
+.app .tool .ib { width: 30px; height: 30px; border-radius: 6px; background: var(--app-ghost); }
+.app .side { position: absolute; left: 0; top: 84px; bottom: 0; width: 260px; background: var(--app-side); border-right: 1px solid var(--app-line);
+  padding: 14px 10px; }
+.app .side .it { height: 54px; border-radius: 6px; padding: 9px 12px; margin-bottom: 4px; }
+.app .side .it.sel { background: var(--app-sel); }
+.app .side .it b { display: block; font-size: 13px; font-weight: 600; color: var(--app-ink); }
+.app .side .it i { display: block; height: 7px; border-radius: 4px; background: var(--app-ghost); margin-top: 9px; width: 80%; }
+.app .doc { position: absolute; left: 260px; right: 0; top: 84px; bottom: 0; padding: 34px 48px; background: var(--surface-card); }
+.app .doc h2 { margin: 0 0 18px; font-size: 24px; font-weight: 600; color: var(--app-ink); }
+.app .doc i { display: block; height: 9px; border-radius: 5px; background: var(--app-ghost); margin: 0 0 16px; }
+
+/* ---------- UpdateBadge (Generic.xaml) ---------- */
+.badge { height: 26px; border-radius: 13px; display: inline-flex; align-items: center; justify-content: center;
+  font-family: Consolas, monospace; font-size: 11px; color: var(--text-disabled); background: var(--surface-card);
+  border: 1px solid var(--surface-card); padding: 0 6px; white-space: nowrap; }
+.badge.rel { color: var(--accent-text); background: var(--accent-tint); border-color: var(--accent-border-soft); padding: 0 10px; }
+.badge.rel.hover { background: var(--accent-tint-strong); }
+.badge.rel.down { background: var(--accent-selected); }
+.tip { position: absolute; background: var(--surface-card); color: var(--text); border: 1px solid var(--border); font-size: 12px;
+  padding: 5px 9px; border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,.14); white-space: nowrap; }
+
+/* ---------- Dialogues Mue (UpdatesDialog.xaml, UpdateBlockersDialog.xaml) ---------- */
+.mue { font-size: 12px; color: var(--text); display: flex; flex-direction: column; height: 100%; }
+.mue .fill { flex: 1; }
+.mue .hd { padding: 18px 20px 14px; }
+.mue .lbl { font-size: 11px; font-weight: 600; color: var(--text-label); margin-bottom: 6px; letter-spacing: .2px; }
+.mue .h { font-size: 18px; font-weight: 600; }
+.mue .vers { display: flex; align-items: center; margin-top: 10px; gap: 0; }
+.mue .pill { border-radius: 10px; padding: 2px 8px; font-family: Consolas, monospace; background: var(--surface-muted); color: var(--text-label); }
+.mue .pill.new { background: var(--accent-selected); color: var(--accent-text); font-weight: 700; }
+.mue .arrow { margin: 0 8px; color: var(--text-detail); }
+.mue .meta { margin-left: 8px; color: var(--text-subtle); }
+.mue .gh { margin-left: auto; color: var(--accent-text); font-size: 12px; }
+.mue .banner { margin-top: 14px; padding: 10px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface-card); }
+.mue .banner.ready { background: var(--accent-tint); border-color: var(--accent-border-soft); }
+.mue .prog { margin-top: 12px; }
+.mue .bar { height: 6px; background: var(--border); overflow: hidden; }
+.mue .bar i { display: block; height: 100%; background: var(--accent); }
+.mue .size { margin-top: 5px; color: var(--text-label); }
+.mue .notes { flex: 1; margin: 0 20px 16px; padding: 12px 16px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface-card); }
+.mue .notes .lbl { margin-bottom: 8px; }
+.mue .notes p { margin: 0 0 6px; line-height: 18px; }
+.mue .notes ul { margin: 0; padding-left: 18px; line-height: 20px; }
+.mue .ft { margin-top: auto; padding: 12px 20px; background: var(--surface-card);
+  border-top: 1px solid var(--separator); display: flex; align-items: center; gap: 8px; }
+.mue .ft .grow { flex: 1; }
+.mue .ft small { display: block; font-size: 11px; color: var(--text-subtle); margin: 3px 0 0 22px; }
+.cbx { width: 16px; height: 16px; border-radius: 3px; border: 1px solid var(--text-detail); display: inline-flex; align-items: center;
+  justify-content: center; font-size: 11px; color: transparent; vertical-align: -3px; margin-right: 6px; background: var(--surface-card); flex: none; }
+.cbx.on { background: var(--primary-bg); border-color: var(--primary-bg); color: var(--primary-text); }
+.bt { display: inline-flex; align-items: center; height: 32px; padding: 0 16px; border-radius: 4px; font-size: 13px; white-space: nowrap;
+  background: var(--surface-card); border: 1px solid var(--border); color: var(--text); }
+.bt.p { background: var(--primary-bg); border-color: var(--primary-bg); color: var(--primary-text); font-weight: 600; }
+.bt.off { opacity: .45; }
+.mue .help { margin-top: 10px; line-height: 17px; }
+.mue .grp { margin: 0 20px 10px; padding: 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface-card); }
+.mue .grp .gh2 { display: flex; align-items: flex-start; gap: 4px; padding-left: 4px; }
+.mue .grp .gh2 .cbx { margin: 2px 10px 0 0; }
+.mue .grp .nm { font-size: 14px; font-weight: 600; }
+.mue .grp .cnt { margin-left: 8px; border-radius: 10px; padding: 1px 8px; background: var(--border); color: var(--text-small); font-size: 12px; }
+.mue .grp .gh { color: var(--warn-text); margin: 4px 0 0; font-size: 12px; max-width: 560px; }
+.mue .grp .gh.relay { color: var(--text-label); }
+.mue .grp .chev { margin-left: auto; width: 26px; height: 26px; border-radius: 4px; background: var(--surface-card); color: var(--accent-text);
+  display: flex; align-items: center; justify-content: center; font-size: 11px; }
+.mue .grp .pr { margin: 10px 0 0 36px; }
+.mue .grp .pr div { display: flex; justify-content: space-between; border-top: 1px solid var(--separator); padding: 6px 0; }
+.mue .grp .pr span { color: var(--text-detail); font-size: 11px; }
+.mue .grp.ignored { opacity: .62; }
+
+/* ---------- Redémarrage ---------- */
+.restart { position: absolute; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+  font-size: 22px; color: var(--text-label); }
+.spin { width: 44px; height: 44px; border-radius: 50%; border: 4px solid var(--border); border-top-color: var(--accent); }
+
+/* ---------- Curseur, légende ---------- */
+.cursor { position: absolute; left: 0; top: 0; width: 30px; height: 44px; transform-origin: 3px 3px; z-index: 50;
+  filter: drop-shadow(0 2px 3px rgba(0,0,0,.28)); }
+.ripple { position: absolute; width: 60px; height: 60px; margin: -30px 0 0 -30px; border-radius: 50%;
+  border: 3px solid var(--accent); z-index: 49; }
+.legend { position: absolute; left: 0; right: 0; top: 968px; display: flex; justify-content: center; z-index: 60; }
+.legend span { display: inline-flex; align-items: center; gap: 16px; background: var(--legend-bg); color: var(--legend-text);
+  border: 1px solid var(--legend-border); backdrop-filter: blur(10px); font-size: 34px; font-weight: 600; letter-spacing: -.3px;
+  padding: 12px 30px 12px 22px; border-radius: 16px; box-shadow: 0 6px 24px rgba(0,0,0,.10); }
+.legend svg { width: 34px; height: 34px; flex: none; }
+
+/* ---------- Touche ---------- */
+.key { position: absolute; right: 90px; bottom: 150px; z-index: 60; min-width: 96px; height: 72px; padding: 0 22px; border-radius: 12px;
+  background: var(--surface-card); border: 1px solid var(--border); color: var(--text); font-size: 28px; font-weight: 600;
+  display: flex; align-items: center; justify-content: center; box-shadow: 0 5px 0 var(--border), 0 10px 24px rgba(0,0,0,.14); }
+.key.down { box-shadow: 0 1px 0 var(--border), 0 4px 10px rgba(0,0,0,.12); }

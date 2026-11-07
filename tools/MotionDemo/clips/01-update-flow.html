@@ -1,0 +1,56 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Mue — Update flow</title>
+<link rel="stylesheet" href="../shared/mue.css"></head>
+<body><div id="stage"></div>
+<script type="module">
+import { clip, prog, E, el, lerp } from '../shared/engine.js';
+import { stage, setCamera, hostApp, setBadge, updatesDialog, renderUpdates, restartScreen, renderRestart, cursor, renderCursor, legend, centerOf, renderPop } from '../shared/ui.js';
+
+// Appli 1240 × 640 à l'échelle 1.3 ; dialogue 580 × 540 à l'échelle 1.6, centré sur l'appli (CenterOwner).
+const AS = 1.3, AW = 1240, AH = 640, AX = (1920 - AW * AS) / 2, AY = 90;
+const S = 1.6, DX = (1920 - 580 * S) / 2, DY = AY + (AH * AS - 540 * S) / 2;
+
+clip({
+  duration: 10,
+  async build() {
+    const { st, camera } = stage();
+    const app = hostApp(camera, { x: AX, y: AY, s: AS, w: AW, h: AH });
+    const layer = el('<div class="layer" style="z-index:40"></div>');
+    camera.appendChild(layer);
+    const dlg = updatesDialog(layer, { x: DX, y: DY, s: S });
+    renderUpdates(dlg, 'available');
+    const restart = restartScreen(camera, { x: AX, y: AY, w: AW * AS, h: AH * AS });
+    const pts = { badge: centerOf(app.badge), b1: centerOf(dlg.q('.b1')) };
+    return { st, camera, app, dlg, restart, pts, cur: cursor(camera), leg: legend(st) };
+  },
+
+  render(t, x) {
+    // Gros plan sur la pastille, puis plan large quand le dialogue s'ouvre.
+    const z = prog(t, 1.65, 2.3, E.inOut), bx = x.pts.badge.x - 120, by = x.pts.badge.y + 40;
+    setCamera(x.camera, lerp(2.4, 1, z), lerp(bx, 960, z), lerp(by, 540, z), lerp(1250, 960, z), lerp(420, 540, z));
+    // L'appli part à 6.9 (fermeture pour installer) et revient en 1.3.0 à 8.2.
+    const show = prog(t, 0, .4, E.out) * (1 - prog(t, 6.7, 7.0, E.in) * (1 - prog(t, 8.1, 8.45, E.out)));
+    x.app.win.style.opacity = show;
+    x.app.win.style.transform = `scale(${.97 + .03 * show})`;
+
+    // Pastille : version seule, puis la recherche trouve 1.3.0, puis la version installée.
+    const p = x.pts;
+    setBadge(x.app.badge, t >= 8 ? { version: '1.3.0' } : { release: t >= 1.0, hover: t >= 1.55 && t < 1.85, down: t >= 1.85 && t < 1.95 });
+    x.app.badge.style.transform = `scale(${1 + .18 * Math.sin(Math.PI * prog(t, 1.0, 1.35, E.out))})`;
+
+    // Dialogue : disponible, téléchargement, prête, installation.
+    renderPop(x.dlg.win, t, [2.05, 2.4], [6.45, 6.7]);
+    const dl = prog(t, 3.0, 4.9, E.inOut);
+    renderUpdates(x.dlg, t < 2.95 ? 'available' : t < 5.0 ? 'downloading' : t < 6.05 ? 'ready' : 'installing', dl);
+
+    renderRestart(x.restart, t, 6.85, 8.2);
+
+    renderCursor(x.cur, t, [
+      [.3, p.badge.x - 260, p.badge.y + 150], [1.35, p.badge.x, p.badge.y], [2.35, p.badge.x, p.badge.y],
+      [2.75, p.b1.x, p.b1.y], [5.9, p.b1.x, p.b1.y], [6.45, p.b1.x, p.b1.y], [6.9, 1500, 900],
+    ], [1.9, 2.85, 5.95], [.3, 6.9]);
+
+    x.leg(t, [[.4, 2.8, 'The app finds the new version'], [2.9, 5.95, 'Download first, install when you say'], [6.05, 9.8, 'Back on 1.3.0 in seconds']]);
+  },
+});
+</script></body></html>

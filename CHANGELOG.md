@@ -1,5 +1,11 @@
 # Historique
 
+## Non publié
+
+- README en anglais (celui des paquets, images en liens absolus) et en français (`README.fr.md`), avec bannières, démarrage rapide compilé contre les paquets 0.3.0 et démonstrations animées hébergées dans le dépôt média `Mue-media`.
+- Icône des paquets (`docs/images/mue-icon.png`, logo plume ambre) : `PackageIcon`, à partir de la prochaine version.
+- `tools/MotionDemo` : rendu des démonstrations animées (Chromium headless et ffmpeg), écrit dans `../Mue-media/videos`.
+
 ## 0.3.0 — 2026-11-07
 
 - Nouveau paquet `Mue.Avalonia` (Avalonia 12.1.4, .NET 8 et .NET 10) : fenêtres de mise à jour et de bloqueurs, indicateur autonome 40/26 px, ressources dynamiques et repli clair/sombre de faible priorité. Même parcours que `Mue.Wpf`.
