@@ -1,11 +1,13 @@
 # Historique
 
-## Non publié — T2 Avalonia
+## Non publié
 
+- `MacUpdateBlockerFinder` utilise le contrat 0.2.0 : chemins multiples, inclusion facultative du processus courant et classifieur recevant la requête.
+- Les processus Mac illisibles restent listés avec `Unavailable` et rendent le scan `Incomplete` ; l'adaptateur 0.1.0 est retiré.
+- La fermeture Mac restitue les cinq résultats du contrat et accepte l'annulation, en conservant le signal lié à l'identité et le délai de cinq secondes.
 - Projet `Mue.Avalonia` en Avalonia 12.1.4 pour .NET 8 et .NET 10 : fenêtres de mise à jour et de bloqueurs, indicateur autonome 40/26 px.
 - Flux de confirmation, résultats de fermeture, ressources dynamiques et repli clair/sombre de faible priorité.
 - Tests headless et captures des états dans `artifacts/avalonia/` ; ajout à la solution et au script d'empaquetage.
-- Validation T2 partielle : textes absents du contrat 0.2.0 recensés dans `docs/t2-avalonia.md`, sans modification du cœur ni de WPF.
 
 ## 0.2.0 — 2026-11-06
 
