@@ -321,6 +321,9 @@ $p.ExitCode
   donne le code mais pas la sortie. Une WinExe n'écrit dans la console qu'après `AttachConsole(ATTACH_PARENT_PROCESS)` :
   ne l'appeler **que si la sortie n'est pas redirigée** (`GetStdHandle(STD_OUTPUT_HANDLE)` vaut 0), sinon la console
   remplace la redirection et le JSON est perdu.
+- **Appeler l'exe de `current\`.** Le lanceur stable à la racine d'une installation Velopack (le stub) démarre l'appli
+  sans l'attendre et ne rend pas son code de sortie (constaté par DockPad sur Velopack 1.2.161). Les scripts appellent
+  `%LocalAppData%\MonAppli\current\MonAppli.exe update --json`.
 - **Une appli de la zone de notification** peut répondre `StillRunning` à une fermeture douce si sa fenêtre se cache au
   lieu de quitter. L'hôte gère ce cas : relayer `update` à l'instance ouverte, ou la faire quitter sur une fermeture douce.
 - **macOS :** le mode silencieux n'est pas encore vérifié sur une vraie machine.
