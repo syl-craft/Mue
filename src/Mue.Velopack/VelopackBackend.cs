@@ -23,7 +23,9 @@ public sealed record VelopackBackendOptions(string GitHubUrl)
 
 public sealed class VelopackBackend : IUpdateBackend
 {
-    private readonly UpdateManager _manager;
+    // Absent quand l'appli n'a pas appelé VelopackApp.Run et qu'aucun locator n'est fourni (tests de l'appli complète) :
+    // le backend se dit alors non installé, et UpdateService ne cherche, ne télécharge ni n'applique rien.
+    private readonly UpdateManager? _manager;
     private readonly VelopackBackendOptions _options;
     private static readonly HttpClient Http = new() { Timeout = Timeout.InfiniteTimeSpan };
     private readonly Func<CancellationToken, UpdateManager>? _createCheckManager;
@@ -32,6 +34,7 @@ public sealed class VelopackBackend : IUpdateBackend
     public VelopackBackend(VelopackBackendOptions options, HttpClient http, IVelopackLocator? locator)
     {
         _options = options;
+        if (locator == null && VelopackLocator.IsCurrentSet == false) return;
         _createCheckManager = token => new UpdateManager(CreateSource(options, new UpdateDownloader(http, token, options.UserAgent)), locator: locator);
         _manager = _createCheckManager(CancellationToken.None);
     }
@@ -41,12 +44,13 @@ public sealed class VelopackBackend : IUpdateBackend
         _options = options;
     }
     public UpdateShutdownBehavior ShutdownBehavior => _options.ShutdownBehavior;
-    public bool IsInstalled => _manager.IsInstalled;
-    public string CurrentVersion => _manager.CurrentVersion?.ToString() ?? _options.FallbackVersion;
+    public bool IsInstalled => _manager?.IsInstalled ?? false;
+    public string CurrentVersion => _manager?.CurrentVersion?.ToString() ?? _options.FallbackVersion;
     public string ContentDirectory => AppContext.BaseDirectory;
     public async Task<UpdateRelease?> CheckAsync(CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
+        if (_manager == null) return null;
         var manager = _createCheckManager?.Invoke(token) ?? _manager;
         var result = await manager.CheckForUpdatesAsync().ConfigureAwait(false);
         token.ThrowIfCancellationRequested();
@@ -54,10 +58,13 @@ public sealed class VelopackBackend : IUpdateBackend
             result.TargetFullRelease.NotesMarkdown ?? "", result, result.TargetFullRelease.Size);
     }
     public Task DownloadAsync(UpdateRelease release, Action<int> progress, CancellationToken token) =>
-        _manager.DownloadUpdatesAsync((UpdateInfo)release.Package, progress, token);
-    public void Apply(UpdateRelease release) => _manager.WaitExitThenApplyUpdates(
+        RequireManager().DownloadUpdatesAsync((UpdateInfo)release.Package, progress, token);
+    public void Apply(UpdateRelease release) => RequireManager().WaitExitThenApplyUpdates(
         ((UpdateInfo)release.Package).TargetFullRelease, silent: false, restart: true,
         restartArgs: _options.RestartArgs);
+
+    private UpdateManager RequireManager() => _manager
+        ?? throw new InvalidOperationException("Velopack is not initialised: call VelopackApp.Run at startup or pass a locator.");
 
     private static GithubSource CreateSource(VelopackBackendOptions options, IFileDownloader downloader) => options.LatestReleaseOnly
         ? new LatestReleaseSource(options.GitHubUrl, downloader)
