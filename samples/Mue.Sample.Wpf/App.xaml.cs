@@ -90,6 +90,10 @@ public partial class App : Application
         Capture(new UpdateBlockersDialog(UpdateBlockerQuery.ForDirectory("demo"), new([]), host,
             UpdateShutdownBehavior.Kill, summary: "2 profiles will be migrated to the new format."), Path.Combine(folder, "confirmation.png"));
         Capture(new MainWindow(ready, host), Path.Combine(folder, "badge.png"));
+
+        using var upToDate = new UpdateService(new FakeUpdateBackend { CurrentVersion = "1.2.0" });
+        await upToDate.CheckAsync();
+        Capture(new MainWindow(upToDate, host), Path.Combine(folder, "badge-current.png"));
     }
 
     /// <summary>Capture de la zone cliente, hors barre de titre, à 96 ppp.</summary>

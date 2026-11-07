@@ -2,14 +2,14 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:mue="clr-namespace:Mue.Wpf">
     <Style TargetType="{x:Type mue:UpdateBadge}">
-        <Setter Property="FontFamily" Value="Consolas"/>
-        <Setter Property="FontSize" Value="11"/>
+        <!-- Police de la fenêtre en 12 px, contour fin au repos : une pastille lisible même sans nouvelle version. -->
+        <Setter Property="FontSize" Value="12"/>
         <Setter Property="Height" Value="40"/>
-        <Setter Property="Foreground" Value="{DynamicResource Brush.TextDisabled}"/>
+        <Setter Property="Foreground" Value="{DynamicResource Brush.TextLabel}"/>
         <Setter Property="Background" Value="{DynamicResource Brush.SurfaceCard}"/>
-        <Setter Property="BorderBrush" Value="{DynamicResource Brush.SurfaceCard}"/>
-        <Setter Property="BorderThickness" Value="0"/>
-        <Setter Property="Padding" Value="0"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource Brush.Border}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Padding" Value="10,0"/>
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="ToolTip" Value="{Binding Status, RelativeSource={RelativeSource Self}}"/>
         <Setter Property="Content" Value="{Binding VersionIndicator, RelativeSource={RelativeSource Self}}"/>
@@ -42,8 +42,6 @@
                 <Setter Property="Foreground" Value="{DynamicResource Brush.AccentText}"/>
                 <Setter Property="Background" Value="{DynamicResource Brush.AccentTint}"/>
                 <Setter Property="BorderBrush" Value="{DynamicResource Brush.AccentBorderSoft}"/>
-                <Setter Property="Padding" Value="10,3"/>
-                <Setter Property="BorderThickness" Value="1"/>
             </Trigger>
         </Style.Triggers>
     </Style>

@@ -29,8 +29,8 @@ public sealed class UpdateBadge : Button
     {
         Height = 40;
         MinWidth = 40;
-        FontSize = 11;
-        FontFamily = new FontFamily("Consolas");
+        // Police de la fenêtre en 12 px, contour fin au repos : une pastille lisible même sans nouvelle version.
+        FontSize = 12;
         Cursor = new Cursor(StandardCursorType.Hand);
         Bind(ToolTip.TipProperty, new Binding(nameof(Status)) { Source = this });
         Bind(AutomationProperties.NameProperty, new Binding(nameof(VersionIndicator)) { Source = this });
@@ -64,7 +64,7 @@ public sealed class UpdateBadge : Button
             : IsPointerOver ? "Brush.AccentTintStrong" : "Brush.AccentTint";
         _badge.Bind(Border.BackgroundProperty, new DynamicResourceExtension(background));
         _badge.Bind(Border.BorderBrushProperty, new DynamicResourceExtension(IsFocused ? "Brush.Accent"
-            : HasRelease ? "Brush.AccentBorderSoft" : "Brush.SurfaceCard"));
-        Bind(ForegroundProperty, new DynamicResourceExtension(HasRelease ? "Brush.AccentText" : "Brush.TextDisabled"));
+            : HasRelease ? "Brush.AccentBorderSoft" : "Brush.Border"));
+        Bind(ForegroundProperty, new DynamicResourceExtension(HasRelease ? "Brush.AccentText" : "Brush.TextLabel"));
     }
 }
