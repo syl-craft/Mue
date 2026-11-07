@@ -1,10 +1,15 @@
 # Historique
 
-## Non publié
+## 0.3.0 — 2026-11-07
 
 - `MacUpdateBlockerFinder` utilise le contrat 0.2.0 : chemins multiples, inclusion facultative du processus courant et classifieur recevant la requête.
 - Les processus Mac illisibles restent listés avec `Unavailable` et rendent le scan `Incomplete` ; l'adaptateur 0.1.0 est retiré.
 - La fermeture Mac restitue les cinq résultats du contrat et accepte l'annulation, en conservant le signal lié à l'identité et le délai de cinq secondes.
+- Un `Summary` non nul impose un accord explicite avant `PrepareAsync`, même sans bloqueur ou après une liste vidée par Réessayer. Sans résumé, le parcours reste inchangé.
+- `Kill` et `AskToQuit` permettent d'ignorer les groupes décochés, y compris les processus illisibles. Le contrôle final tolère leurs seules identités PID/date ; les nouveaux processus restent bloquants. `Refuse` reste strict.
+- Les textes fr/en deviennent génériques : `UpdateTexts.AppName` remplace `{AppName}` avant formatage dans les seules ressources de Mue. Les textes des hôtes restent prioritaires et intacts.
+- Les aides `AskToQuit` annoncent la demande de quitter et le risque d'interruption sans enregistrement. Ajout des textes de confirmation, d'installation sans fermeture, de scan incomplet, de fermeture de fenêtre et des cinq résultats de fermeture (`UpdatePresentation.CloseResultText`).
+- Pour les hôtes WPF : le constructeur de `UpdateBlockersDialog` et son rafraîchissement reçoivent un `UpdateBlockerScan`. `Incomplete` affiche un avertissement ; `IgnoredBlockers` expose les identités acceptées. Les hôtes `Refuse` sans résumé conservent leur parcours et leur rendu lorsque le scan est complet.
 
 ## 0.2.0 — 2026-11-06
 

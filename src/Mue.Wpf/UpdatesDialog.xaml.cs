@@ -116,15 +116,18 @@ public partial class UpdatesDialog : Window
             SetPreparationSummary(check.Summary);
             if (!check.CanContinue) return;
             var scan = await Task.Run(() => _host.Finder.Find(_updates.BlockerQuery, _host.Classifier));
-            if (scan.Blockers.Count > 0)
+            IReadOnlySet<(int Pid, long Started)> ignored = new HashSet<(int Pid, long Started)>();
+            if (scan.Blockers.Count > 0 || check.Summary != null)
             {
-                var dialog = new UpdateBlockersDialog(_updates.BlockerQuery, scan.Blockers, _host,
+                var dialog = new UpdateBlockersDialog(_updates.BlockerQuery, scan, _host,
                     _updates.ShutdownBehavior, summary: check.Summary);
                 if (IsVisible) dialog.Owner = this;
                 if (_showBlockers(dialog) != true) return;
+                ignored = dialog.IgnoredBlockers;
             }
             // Le contrôle final améliore le retour ; le moteur natif décide ensuite du remplacement.
-            if ((await Task.Run(() => _host.Finder.Find(_updates.BlockerQuery, _host.Classifier, enrich: false))).Blockers.Count > 0)
+            var finalScan = await Task.Run(() => _host.Finder.Find(_updates.BlockerQuery, _host.Classifier, enrich: false));
+            if (UpdateBlockers.HasUnacceptedBlockers(finalScan.Blockers, _updates.ShutdownBehavior, ignored))
                 throw new IOException(UpdateTexts.T("Update_LockError"));
             if (!await _host.PrepareAsync(this, System.Threading.CancellationToken.None)) return;
             _host.BeforeApply();
