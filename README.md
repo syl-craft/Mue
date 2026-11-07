@@ -16,6 +16,21 @@ WindowsUpdateBlockerFinder est réservé à Windows, avec System.Management 8.0.
 natifs. UpdateBlockers conserve les opérations pures de sélection et d'identité ; la recherche
 et la fermeture passent par IUpdateBlockerFinder.
 
+Sur macOS 15+, `MacUpdateBlockerFinder` reçoit une `UpdateBlockerQuery` contenant des chemins
+absolus de bundles `.app`, de dossiers ou d'exécutables. Les chemins sont résolus par `realpath`
+avant le filtrage, avec une comparaison sensible à la casse. `IncludeCurrentProcess` permet
+de lister le processus courant ; sa fermeture reste refusée.
+La fermeture douce attend cinq secondes ; le constructeur
+`new MacUpdateBlockerFinder(exitTimeout: TimeSpan.FromSeconds(7), log: log)` permet de régler ce délai.
+Conserver les objets retournés par `Find` et utiliser la même instance pour `CloseAsync` :
+elle garde leur audit token natif. Sans ce token, aucun signal n'est envoyé.
+`Find(query, classifier, enrich)` retourne un `UpdateBlockerScan`. Les processus dont le chemin
+est illisible restent listés avec `Unavailable`, même si leur appartenance aux chemins demandés
+ne peut pas être établie. Une identité illisible pour un exécutable retenu produit le même état.
+Ces bloqueurs ne sont pas présélectionnés, rendent le scan `Incomplete` et ne peuvent pas être fermés.
+`CloseAsync(blocker, force, token)` retourne les cinq valeurs de `UpdateBlockerCloseResult` ;
+l'annulation interrompt l'attente sans envoyer de signal supplémentaire.
+
 ## Intégration par un hôte
 
 Les textes anglais et français sont intégrés. Configurer un fournisseur est facultatif :
@@ -159,8 +174,10 @@ publication. Le script refuse d'écraser une version présente dans le flux.
 ## Tests
 
 `dotnet build Mue.sln -m:4` puis `dotnet test Mue.sln -m:4 --filter "Category!=RealMachine"`.
-Les tests `RealMachine` consultent les vrais processus et Restart Manager ; les exécuter sur
-une machine Windows hors bac à sable avec `--filter "Category=RealMachine"`. Ils ne sont pas
-désactivés. Les tests HTTP utilisent des réponses simulées, sans accès réseau.
+Les tests Windows `RealMachine` consultent les vrais processus et Restart Manager ; les exécuter
+sur une machine Windows hors bac à sable avec `--filter "Category=RealMachine"`. Ils ne sont pas
+désactivés. Les tests natifs Mac portent `RealMachine` et `MacNative` ; ils sont ignorés hors
+macOS 15+. Sur Mac, les lancer avec `dotnet test tests/Mue.Tests/Mue.Tests.csproj -m:4 --filter "Category=MacNative"`.
+Les tests HTTP utilisent des réponses simulées, sans accès réseau.
 
 Licence MIT, syl-craft.
