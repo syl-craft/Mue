@@ -1,0 +1,74 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Mue — Blocking programs</title>
+<link rel="stylesheet" href="../shared/mue.css"></head>
+<body><div id="stage"></div>
+<script type="module">
+import { clip, prog, E, el } from '../shared/engine.js';
+import { APP, stage, hostApp, setBadge, updatesDialog, renderUpdates, blockersDialog, renderBlockers, restartScreen, renderRestart, cursor, renderCursor, legend, centerOf, renderPop } from '../shared/ui.js';
+
+const AS = 1.3, AW = 1240, AH = 640, AX = (1920 - AW * AS) / 2, AY = 90;
+const S = 1.6, DX = (1920 - 580 * S) / 2, DY = AY + (AH * AS - 540 * S) / 2;
+// Fenêtre des blocages agrandie à 620 px de haut pour montrer les trois groupes sans défilement.
+const BS = 1.4, BH = 620, BX = (1920 - 700 * BS) / 2, BY = AY + (AH * AS - BH * BS) / 2;
+
+// Groupes d'UpdateBlockerGroups : les sessions relais d'abord (cochées d'avance), puis un groupe par programme.
+const GROUPS = [
+  { name: `Sessions from another program using ${APP}`, relay: true,
+    help: `The sessions stay open. They lose access to ${APP} until they reconnect.`,
+    procs: [['Assistant — MCP', 'since 9:14 AM · PID 4128'], ['Assistant — MCP', 'since 10:02 AM · PID 7720']] },
+  { name: 'Sync Agent', help: 'Closing this program closes its windows. It is better to close it yourself, then Retry.',
+    procs: [['Sync Agent', 'since 8:30 AM · PID 2216']] },
+  { name: 'Preview', help: 'Closing this program closes its windows. It is better to close it yourself, then Retry.',
+    procs: [['Preview', 'since 11:47 AM · PID 9360']] },
+];
+
+clip({
+  duration: 10,
+  async build() {
+    const { st, camera } = stage();
+    const app = hostApp(camera, { x: AX, y: AY, s: AS, w: AW, h: AH });
+    setBadge(app.badge, { release: true });
+    const layer = el('<div class="layer" style="z-index:40"></div>');
+    camera.appendChild(layer);
+    const up = updatesDialog(layer, { x: DX, y: DY, s: S });
+    renderUpdates(up, 'ready');
+    const blk = blockersDialog(layer, { x: BX, y: BY, s: BS, groups: GROUPS, h: BH });
+    renderBlockers(blk, [true, false, false], GROUPS);
+    const restart = restartScreen(camera, { x: AX, y: AY, w: AW * AS, h: AH * AS });
+    const pts = { install: centerOf(up.q('.b1')), relay: centerOf(blk.groups[0].querySelector('.cbx')),
+      preview: centerOf(blk.groups[2].querySelector('.cbx')), close: centerOf(blk.q('.b1')) };
+    return { st, app, up, blk, restart, pts, cur: cursor(camera), leg: legend(st) };
+  },
+
+  render(t, x) {
+    // L'appli se ferme à 6.0 pour installer et revient en 1.3.0 à 7.6.
+    const show = prog(t, 0, .4, E.out) * (1 - prog(t, 5.9, 6.2, E.in) * (1 - prog(t, 7.5, 7.85, E.out)));
+    x.app.win.style.opacity = show;
+    setBadge(x.app.badge, t >= 7.4 ? { version: '1.3.0' } : { release: true });
+
+    renderPop(x.up.win, t, [.1, .45], [5.6, 5.85]);
+    renderUpdates(x.up, t < 1.05 ? 'ready' : 'preparing');
+    renderPop(x.blk.win, t, [1.35, 1.7], [5.45, 5.75]);
+
+    // Les trois libellés du bouton : sessions relais cochées d'avance (« Close 2 programs »), décochées à 2.75
+    // (« Install without closing them »), puis Preview cochée à 3.95 (« Close 1 program »).
+    const checked = [t < 2.75, false, t >= 3.95];
+    renderBlockers(x.blk, checked, GROUPS);
+    const working = t >= 4.9;
+    x.blk.q('.b1').classList.toggle('off', working);
+    // Preview se ferme, puis l'installation part.
+    x.blk.groups[2].style.opacity = working ? 1 - prog(t, 4.95, 5.35, E.in) : '';
+
+    renderRestart(x.restart, t, 6.05, 7.6);
+
+    const p = x.pts;
+    renderCursor(x.cur, t, [
+      [.2, 1500, 900], [.75, p.install.x, p.install.y], [1.4, p.install.x, p.install.y],
+      [2.4, p.relay.x, p.relay.y], [3.2, p.relay.x, p.relay.y], [3.7, p.preview.x, p.preview.y], [4.4, p.preview.x, p.preview.y],
+      [4.8, p.close.x, p.close.y], [5.3, p.close.x, p.close.y], [5.9, 1500, 900],
+    ], [.95, 2.75, 3.95, 4.9], [.2, 5.9]);
+
+    x.leg(t, [[.3, 2.4, 'Mue lists what still uses your files'], [2.5, 5.9, 'Close some, leave the rest to the installer'], [6.0, 9.8, 'Nothing closes without your say']]);
+  },
+});
+</script></body></html>

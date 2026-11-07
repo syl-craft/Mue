@@ -1,0 +1,59 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Mue — Explicit consent</title>
+<link rel="stylesheet" href="../shared/mue.css"></head>
+<body><div id="stage"></div>
+<script type="module">
+import { clip, prog, E, el } from '../shared/engine.js';
+import { stage, hostApp, setBadge, updatesDialog, renderUpdates, confirmDialog, keycap, restartScreen, renderRestart, cursor, renderCursor, legend, centerOf, renderPop } from '../shared/ui.js';
+
+const AS = 1.3, AW = 1240, AH = 640, AX = (1920 - AW * AS) / 2, AY = 90;
+const S = 1.6, DX = (1920 - 580 * S) / 2, DY = AY + (AH * AS - 540 * S) / 2;
+// Confirmation à 400 px de haut, la hauteur minimale de la fenêtre : sans bloqueur, elle ne montre que le résumé.
+const CS = 1.4, CH = 400, CX = (1920 - 700 * CS) / 2, CY = AY + (AH * AS - CH * CS) / 2;
+// Résumé rendu par IUpdateDialogHost.CheckAsync (UpdatePreparationCheck.Summary) : donnée de démonstration.
+const SUMMARY = '2 profiles will be migrated to the new format.';
+
+clip({
+  duration: 8,
+  async build() {
+    const { st, camera } = stage();
+    const app = hostApp(camera, { x: AX, y: AY, s: AS, w: AW, h: AH });
+    setBadge(app.badge, { release: true });
+    const layer = el('<div class="layer" style="z-index:40"></div>');
+    camera.appendChild(layer);
+    const up = updatesDialog(layer, { x: DX, y: DY, s: S });
+    renderUpdates(up, 'ready');
+    const cf = confirmDialog(layer, { x: CX, y: CY, s: CS, summary: SUMMARY, h: CH });
+    const restart = restartScreen(camera, { x: AX, y: AY, w: AW * AS, h: AH * AS });
+    const pts = { install: centerOf(up.q('.b1')), confirm: centerOf(cf.q('.b1')) };
+    return { st, app, up, cf, restart, pts, esc: keycap(st, 'Esc'), cur: cursor(camera), leg: legend(st) };
+  },
+
+  render(t, x) {
+    // Premier essai annulé par Échap (2.3), second confirmé (4.6) ; l'appli revient en 1.3.0 à 6.7.
+    const show = prog(t, 0, .4, E.out) * (1 - prog(t, 5.15, 5.45, E.in) * (1 - prog(t, 6.6, 6.95, E.out)));
+    x.app.win.style.opacity = show;
+    setBadge(x.app.badge, t >= 6.5 ? { version: '1.3.0' } : { release: true });
+
+    renderPop(x.up.win, t, [.1, .45], [4.85, 5.1]);
+    const preparing = (t >= .85 && t < 2.45) || t >= 3.55;
+    renderUpdates(x.up, t >= 4.7 ? 'installing' : preparing ? 'preparing' : 'ready', 0, t >= .85 ? SUMMARY : null);
+
+    // Fenêtre de confirmation : ouverte deux fois, fermée par Échap la première.
+    const o1 = renderPop(x.cf.win, t, [1.15, 1.45], [2.35, 2.55]);
+    if (t >= 3.0) renderPop(x.cf.win, t, [3.85, 4.15], [4.75, 4.95]);
+    x.esc(t, 1.9, 2.9, [2.25, 2.4]);
+
+    renderRestart(x.restart, t, 5.25, 6.7);
+
+    const p = x.pts;
+    renderCursor(x.cur, t, [
+      [.2, 1500, 900], [.6, p.install.x, p.install.y], [1.25, p.install.x, p.install.y], [1.8, p.install.x + 120, p.install.y + 60],
+      [2.9, p.install.x + 120, p.install.y + 60], [3.25, p.install.x, p.install.y], [3.9, p.install.x, p.install.y],
+      [4.35, p.confirm.x, p.confirm.y], [5.0, p.confirm.x, p.confirm.y], [5.4, 1500, 900],
+    ], [.8, 3.45, 4.6], [.2, 5.4]);
+
+    x.leg(t, [[.3, 1.85, 'Your app says what the install will do'], [1.95, 3.5, 'Esc: nothing happens, the update waits'], [3.6, 7.9, 'It installs only once you confirm']]);
+  },
+});
+</script></body></html>

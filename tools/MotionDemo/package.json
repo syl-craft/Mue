@@ -1,0 +1,8 @@
+{
+  "name": "mue-motion-demo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Motion designs de demonstration de Mue, sur le modele de DockPad tools/MotionDemo",
+  "scripts": { "render": "node render.mjs", "serve": "node render.mjs --serve" },
+  "devDependencies": { "playwright": "^1.63.0" }
+}
