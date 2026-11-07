@@ -1,5 +1,9 @@
 # Historique
 
+## 0.6.1 — 2026-11-07
+
+- Correctif : la clé `Common_Close` (bouton de fermeture des états hors ligne, à jour, recherche et échec) manquait aux ressources de Mue. Un hôte WPF qui ne la fournissait pas voyait « [Common_Close] ». Ajoutée en anglais (« Close ») et en français (« Fermer ») ; un hôte qui la fournit garde son texte. `UpdateTextKeys.All` passe à 90 clés. Un test vérifie que chaque libellé de `UpdatePresentation` existe dans les ressources de Mue. Signalé par PicaLite.
+
 ## 0.6.0 — 2026-11-07
 
 - Crédit « Updates by Mue » dans `UpdatesDialog` (WPF et Avalonia) : plume de Mue et lien vers https://github.com/syl-craft/Mue, en bas à gauche, affiché par défaut, masquable avec `UpdatesDialogOptions.ShowCredit = false`. Nouvelle clé `Update_Credit` (89 clés), constante `UpdateCredit.Url`.

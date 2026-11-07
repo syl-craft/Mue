@@ -7,11 +7,23 @@ public sealed class UpdateTextKeysTests
     [Fact]
     public void All_lists_every_neutral_key_including_the_040_additions()
     {
-        Assert.Equal(89, UpdateTextKeys.All.Count);
+        Assert.Equal(90, UpdateTextKeys.All.Count);
         Assert.Contains("Update_Credit", UpdateTextKeys.All);
         Assert.Contains("Update_ConfirmHelpForced", UpdateTextKeys.All);
         Assert.Contains("Update_ConfirmHelpAskToQuit", UpdateTextKeys.All);
         Assert.Contains("Update_Download", UpdateTextKeys.All);
+    }
+
+    [Fact]
+    public void Every_label_of_the_presentation_exists_in_Mue_texts()
+    {
+        // Régression 0.6.0 : « Common_Close » manquait ; un hôte sans cette clé voyait « [Common_Close] » en WPF.
+        var keys = Enum.GetValues<UpdateState>()
+            .SelectMany(state => new[] { false, true }.Select(hasChecked => UpdatePresentation.For(state, hasChecked)))
+            .SelectMany(presentation => new[] { presentation.TitleKey, presentation.LabelKey, presentation.PrimaryKey, presentation.SecondaryKey })
+            .Distinct();
+
+        Assert.All(keys, key => Assert.Contains(key, UpdateTextKeys.All));
     }
 
     [Fact]
