@@ -10,17 +10,34 @@ indépendants des choix de l'application hôte. Rien ne s'installe automatiqueme
 | Mue | net8.0, net10.0 | États, recherche, téléchargement, notes, contrats et blocages |
 | Mue.Velopack | net8.0, net10.0 | Backend et chemins Velopack ; dépendance exacte **1.2.161** |
 | Mue.Wpf | net8.0-windows, net10.0-windows | UpdatesDialog, UpdateBlockersDialog et traduction XAML |
+| Mue.Avalonia | net8.0, net10.0 | Port Avalonia 12.1.4 des dialogues et UpdateBadge |
 
 Le cœur ne référence ni WPF ni Velopack et ne cible pas Windows. Seul
 WindowsUpdateBlockerFinder est réservé à Windows, avec System.Management 8.0.0 et les appels
 natifs. UpdateBlockers conserve les opérations pures de sélection et d'identité ; la recherche
 et la fermeture passent par IUpdateBlockerFinder.
 
+Sur macOS 15+, `MacUpdateBlockerFinder` reçoit une `UpdateBlockerQuery` contenant des chemins
+absolus de bundles `.app`, de dossiers ou d'exécutables. Les chemins sont résolus par `realpath`
+avant le filtrage, avec une comparaison sensible à la casse. `IncludeCurrentProcess` permet
+de lister le processus courant ; sa fermeture reste refusée.
+La fermeture douce attend cinq secondes ; le constructeur
+`new MacUpdateBlockerFinder(exitTimeout: TimeSpan.FromSeconds(7), log: log)` permet de régler ce délai.
+Conserver les objets retournés par `Find` et utiliser la même instance pour `CloseAsync` :
+elle garde leur audit token natif. Sans ce token, aucun signal n'est envoyé.
+`Find(query, classifier, enrich)` retourne un `UpdateBlockerScan`. Un processus dont le chemin
+est illisible est ignoré : rien ne le rattache aux chemins demandés (comme sous Windows, hors signalement
+Restart Manager). Un exécutable retenu dont l'identité est illisible est listé avec `Unavailable`.
+Ces bloqueurs ne sont pas présélectionnés, rendent le scan `Incomplete` et ne peuvent pas être fermés.
+`CloseAsync(blocker, force, token)` retourne les cinq valeurs de `UpdateBlockerCloseResult` ;
+l'annulation interrompt l'attente sans envoyer de signal supplémentaire.
+
 ## Intégration par un hôte
 
 Les textes anglais et français sont intégrés. Configurer un fournisseur est facultatif :
 
 ```csharp
+UpdateTexts.AppName = "Mon application";
 UpdateTexts.Configure(new HostUpdateTexts());
 var service = new UpdateService(backend, new UpdateServiceOptions
 {
@@ -40,6 +57,9 @@ de l'hôte. Celui-ci fournit :
 - **IUpdateTexts** : `TryGet` indique les clés connues ; `T`, `F`, `Formatting` et `LanguageChanged` gardent leur rôle.
   Les clés inconnues retombent sur les ressources de Mue selon `CurrentUICulture`. `Configure(null)` rétablit les textes intégrés.
   Les ressources françaises voyagent dans les assemblies satellites des paquets ; SmartFormat porte les pluriels.
+  `UpdateTexts.AppName` vaut par défaut le nom de l'assembly d'entrée. Le jeton littéral
+  `{AppName}` des ressources de Mue est remplacé avant `T` et le formatage `F` ; les textes
+  fournis par l'hôte restent intacts.
 - **IUpdateLog** : journalisation des erreurs. SilentUpdateLog convient à un hôte sans journal.
 - **IUpdateSchedule** : préférence Automatic, dernière recherche et persistance de RecordCheck.
   MemoryUpdateSchedule convient aux fixtures.
@@ -65,6 +85,35 @@ ni libérer de session. Après téléchargement : vérification, recherche des b
 si nécessaire, contrôle final sans enrichissement, puis une seule préparation, `BeforeApply`,
 `Apply`, `ExitAfterApply`. Reporter ou fermer le dialogue des bloqueurs ne prépare pas l'hôte.
 Le résumé facultatif apparaît dans les deux fenêtres ; nul, son emplacement reste replié.
+
+### Accord et programmes ignorés
+
+1. `CheckAsync` annonce les effets de la préparation dans `Summary`, sans les exécuter.
+2. Sans résumé et sans bloqueur, le parcours continue directement. Sans résumé, une liste
+   vidée par **Réessayer** ou par une fermeture vaut accord, comme auparavant.
+3. Avec un résumé non nul (même vide), le dialogue s'ouvre toujours. Sans bloqueur, il affiche
+   **Confirmer l'installation**, le résumé et **Confirmer et installer**. Seul ce bouton vaut accord.
+4. Avec des bloqueurs, le résumé reste visible. **Fermer N programmes et installer** autorise
+   leur fermeture. Si **Réessayer** ou cette fermeture vide la liste, le dialogue reste ouvert
+   en confirmation ; l'utilisateur confirme avant toute préparation.
+5. Pour `Kill` ou `AskToQuit`, décocher un groupe accepte de le laisser à l'installeur.
+   Le bouton ferme les groupes cochés, puis poursuit si seuls les ignorés restent.
+   Sans groupe coché, **Installer sans les fermer** donne cet accord directement.
+   Un processus `Unavailable` peut lui aussi être ignoré ; il ne peut pas être fermé.
+6. Les programmes cochés qui restent ouverts passent dans la liste des restants, avec
+   **Forcer l'arrêt et installer**. `Kill` annonce un arrêt forcé par l'installeur ; `AskToQuit`
+   annonce une demande de quitter, avec un risque d'interruption sans enregistrement.
+   `Refuse` exige toujours la disparition de tous les bloqueurs et ne permet pas d'ignorer.
+7. Le contrôle final (`enrich: false`) accepte seulement les identités ignorées lors de l'accord
+   (PID et heure de démarrage). Un nouveau processus, même avec un PID réutilisé, bloque.
+   Ensuite seulement : `PrepareAsync`, `BeforeApply`, `Apply`, `ExitAfterApply`.
+
+**Reporter**, Échap ou la fermeture de la fenêtre ne donnent aucun accord et n'appellent jamais
+`PrepareAsync`. `UpdateBlockersDialog` reçoit désormais un `UpdateBlockerScan`, et son délégué
+`refresh` retourne ce même type. `scan.Incomplete` affiche un avertissement séparé de l'état de
+fermeture incomplète (`incomplete`, utilisé par les fixtures). `IgnoredBlockers` expose les identités
+acceptées pour le contrôle final. `UpdatePresentation.CloseResultText` traduit les cinq résultats
+de `CloseAsync`.
 
 `Apply` écrit la version attendue avant de lancer le backend et la retire si celui-ci lève.
 Au démarrage résident, appeler `service.VerifyLaunch()` une fois : `None`, `Succeeded` ou
@@ -127,6 +176,31 @@ pastille 26 px ; les brosses dynamiques suivent le thème de l'hôte.
                  Command="{Binding OpenUpdates}" />
 ```
 
+## Intégration Avalonia
+
+Après les ressources et le thème de l'hôte, appeler explicitement
+`Mue.Avalonia.MueStyles.AddMissingDefaults(app)` au démarrage. Les clés sont les mêmes que
+`Mue.Wpf.MueStyleKeys.Required` ; les trois boutons et `DialogFooter` sont des `ControlTheme`
+Avalonia ciblant respectivement `Button` et `Border`. Le repli clair/sombre ne fournit que les
+clés absentes, dans le premier dictionnaire fusionné, derrière les ressources de l'hôte.
+Les fenêtres ne fusionnent aucun dictionnaire et utilisent `DynamicResource`.
+
+```csharp
+var dialog = new Mue.Avalonia.UpdatesDialog(service, dialogHost);
+await dialog.ShowDialog(owner);
+```
+
+`dialogHost` implémente le contrat générique `IUpdateDialogHost` ; les propriétaires reçus
+sont des `Avalonia.Controls.Window`. Le thème de contrôles de l'hôte (Fluent ou autre) reste
+responsable des cases à cocher et barres de progression. L'extension `{mue:T Clé}` suit
+`UpdateTexts.LanguageChanged` sur le thread d'interface. `UpdateBadge` expose les mêmes
+propriétés, `Command`, `CommandParameter` et `Click` que le contrôle WPF ; la cible est
+entièrement cliquable sur 40 px et la pastille mesure 26 px.
+
+Les tests `Mue.Avalonia.Tests` utilisent Skia et `Avalonia.Headless.XUnit` sur les deux cibles.
+Ils écrivent les captures dans `artifacts/avalonia/net8.0` et `artifacts/avalonia/net10.0`,
+dossier ignoré par git.
+
 ## Publication locale
 
 Installer les SDK .NET 8 et .NET 10 et le support WPF sur Windows, puis exécuter :
@@ -134,10 +208,10 @@ Installer les SDK .NET 8 et .NET 10 et le support WPF sur Windows, puis exécute
 ```powershell
 ./pack.ps1
 ./pack.ps1 -Feed C:\mon-flux-nuget
-./pack.ps1 -Feed C:\mon-flux-nuget -Version 0.2.0-b2.1 -SkipTests
+./pack.ps1 -Feed C:\mon-flux-nuget -Version 0.3.0-b3.1 -SkipTests
 ```
 
-Le script compile et teste la solution, puis empaquette les trois projets en Release avec -m:4.
+Le script compile et teste la solution, puis empaquette les quatre projets en Release avec -m:4.
 Le flux par défaut est C:\Users\Sylvain\nuget-local. Pour un projet consommateur, définir
 RestoreAdditionalProjectSources à partir d'une propriété MueFeed surchargeable :
 
@@ -159,8 +233,10 @@ publication. Le script refuse d'écraser une version présente dans le flux.
 ## Tests
 
 `dotnet build Mue.sln -m:4` puis `dotnet test Mue.sln -m:4 --filter "Category!=RealMachine"`.
-Les tests `RealMachine` consultent les vrais processus et Restart Manager ; les exécuter sur
-une machine Windows hors bac à sable avec `--filter "Category=RealMachine"`. Ils ne sont pas
-désactivés. Les tests HTTP utilisent des réponses simulées, sans accès réseau.
+Les tests Windows `RealMachine` consultent les vrais processus et Restart Manager ; les exécuter
+sur une machine Windows hors bac à sable avec `--filter "Category=RealMachine"`. Ils ne sont pas
+désactivés. Les tests natifs Mac portent `RealMachine` et `MacNative` ; ils sont ignorés hors
+macOS 15+. Sur Mac, les lancer avec `dotnet test tests/Mue.Tests/Mue.Tests.csproj -m:4 --filter "Category=MacNative"`.
+Les tests HTTP utilisent des réponses simulées, sans accès réseau.
 
 Licence MIT, syl-craft.

@@ -7,6 +7,16 @@ public sealed record UpdatePresentation(string TitleKey, string LabelKey,
     UpdateAction Secondary, string SecondaryKey, UpdateAction Primary, string PrimaryKey,
     bool PrimaryEnabled = true, bool PrimaryAccent = true)
 {
+    public static string CloseResultText(UpdateBlockerCloseResult result) => UpdateTexts.T(result switch
+    {
+        UpdateBlockerCloseResult.Closed => "Update_CloseResult_Closed",
+        UpdateBlockerCloseResult.StillRunning => "Update_CloseResult_StillRunning",
+        UpdateBlockerCloseResult.AccessDenied => "Update_CloseResult_AccessDenied",
+        UpdateBlockerCloseResult.Gone => "Update_CloseResult_Gone",
+        UpdateBlockerCloseResult.IdentityChanged => "Update_CloseResult_IdentityChanged",
+        _ => throw new ArgumentOutOfRangeException(nameof(result)),
+    });
+
     public static UpdatePresentation For(UpdateState state, bool hasChecked) => state switch
     {
         UpdateState.Unavailable => new("Update_TitleUnavailable", "Update_StateUnavailable",
