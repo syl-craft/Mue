@@ -1,5 +1,9 @@
 # Historique
 
+## 0.6.2 — 2026-11-07
+
+- Style par défaut de la pastille `UpdateBadge` (WPF et Avalonia) : police de la fenêtre en 12 px au lieu de Consolas 11 ; au repos, marge intérieure 10 px et contour `Brush.Border` (la pastille WPF était un cercle dont « v1.2.0 » débordait, le contour Avalonia était invisible) ; texte `Brush.TextLabel`. Aspect avec nouvelle version inchangé hors police. Au repos, retour au survol (`SurfaceMuted`) et à l'appui (`Border`). Remarques de PicaLite.
+
 ## 0.6.1 — 2026-11-07
 
 - Correctif : la clé `Common_Close` (bouton de fermeture des états hors ligne, à jour, recherche et échec) manquait aux ressources de Mue. Un hôte WPF qui ne la fournissait pas voyait « [Common_Close] ». Ajoutée en anglais (« Close ») et en français (« Fermer ») ; un hôte qui la fournit garde son texte. `UpdateTextKeys.All` passe à 90 clés. Un test vérifie que chaque libellé de `UpdatePresentation` existe dans les ressources de Mue. Signalé par PicaLite.

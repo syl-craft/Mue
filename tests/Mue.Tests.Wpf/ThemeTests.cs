@@ -35,6 +35,28 @@ public sealed class ThemeTests
         }));
     });
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public Task Badge_keeps_its_inner_margin_and_outline_at_rest_and_with_a_release(bool hasRelease) => WpfTestHost.Run(() =>
+    {
+        // Avant 0.6.2 : sans marge au repos, la pastille était un cercle et « v1.2.0 » en débordait.
+        var badge = new UpdateBadge { VersionIndicator = "v1.2.0", HasRelease = hasRelease };
+        var window = new Window { Content = badge, SizeToContent = SizeToContent.WidthAndHeight, ShowActivated = false };
+        try
+        {
+            window.Show();
+            Assert.Equal(new Thickness(10, 0, 10, 0), badge.Padding);
+            Assert.Equal(new Thickness(1), badge.BorderThickness);
+            Assert.Equal(12, badge.FontSize);
+            var pill = (FrameworkElement)badge.Template.FindName("Badge", badge);
+            var text = new FormattedText(badge.VersionIndicator, System.Globalization.CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
+                new Typeface(badge.FontFamily, badge.FontStyle, badge.FontWeight, badge.FontStretch), badge.FontSize, Brushes.Black, 1.0);
+            Assert.True(pill.ActualWidth >= text.Width + 20, $"pastille {pill.ActualWidth:0} px pour un texte de {text.Width:0} px");
+        }
+        finally { window.Close(); }
+    });
+
     [Fact]
     public Task Without_a_host_call_Mue_never_touches_the_title_bar_or_system_events() => WithTheme(app =>
     {
