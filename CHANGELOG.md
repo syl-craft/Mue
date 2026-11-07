@@ -2,6 +2,7 @@
 
 ## Non publié
 
+- README de vitrine, court et structuré (fonctionnalités, démonstrations en grille, démarrage rapide, paquets) ; le guide d'intégration complet passe dans `docs/guide.md` et `docs/guide.fr.md`.
 - README : la ligne de commande s'appelle sur l'exe de `current\`, le lanceur stable Velopack n'attendant pas l'appli et ne rendant pas son code de sortie (constat DockPad).
 
 ## 0.5.0 — 2026-11-07
