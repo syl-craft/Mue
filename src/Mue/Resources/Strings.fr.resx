@@ -31,10 +31,10 @@
     <value>Préparation de la mise à jour…</value>
   </data>
   <data name="Update_Installing" xml:space="preserve">
-    <value>Fermeture de DockPad pour installer la mise à jour…</value>
+    <value>Fermeture de {AppName} pour installer la mise à jour…</value>
   </data>
   <data name="Update_Failed" xml:space="preserve">
-    <value>La mise à jour n’a pas pu aboutir. Vérifiez la connexion et réessayez. DockPad reste utilisable.</value>
+    <value>La mise à jour n’a pas pu aboutir. Vérifiez la connexion et réessayez. {AppName} reste utilisable.</value>
   </data>
   <data name="Update_UpToDate" xml:space="preserve">
     <value>Vous disposez de la dernière version.</value>
@@ -55,7 +55,7 @@
     <value>Programmes bloquants</value>
   </data>
   <data name="Update_BlockedHelp" xml:space="preserve">
-    <value>Ces programmes utilisent des fichiers de DockPad. Choisissez ceux à fermer pour installer la mise à jour.</value>
+    <value>Ces programmes utilisent des fichiers de {AppName}. Choisissez ceux à fermer pour installer la mise à jour.</value>
   </data>
   <data name="Update_Retry" xml:space="preserve">
     <value>Réessayer</value>
@@ -70,10 +70,10 @@
     <value>Télécharger la dernière version</value>
   </data>
   <data name="Update_TitleUnavailable" xml:space="preserve">
-    <value>Installer la dernière version de DockPad</value>
+    <value>Installer la dernière version de {AppName}</value>
   </data>
   <data name="Update_TitleCurrent" xml:space="preserve">
-    <value>DockPad est à jour</value>
+    <value>{AppName} est à jour</value>
   </data>
   <data name="Update_TitleChecking" xml:space="preserve">
     <value>Recherche de mises à jour</value>
@@ -139,7 +139,7 @@
     <value>Redémarrer et installer</value>
   </data>
   <data name="Update_ReadyHelp" xml:space="preserve">
-    <value>Téléchargée. DockPad se ferme quelques secondes pour l’installer, puis se rouvre.</value>
+    <value>Téléchargée. {AppName} se ferme quelques secondes pour l’installer, puis se rouvre.</value>
   </data>
   <data name="Update_Published" xml:space="preserve">
     <value>Publiée le {0}</value>
@@ -178,10 +178,10 @@
     <value>v{0} → {1}</value>
   </data>
   <data name="Update_McpGroup" xml:space="preserve">
-    <value>Relais MCP des sessions Claude</value>
+    <value>Sessions d&apos;un autre programme utilisant {AppName}</value>
   </data>
   <data name="Update_McpHelp" xml:space="preserve">
-    <value>Les sessions restent ouvertes. Elles perdent l’accès aux outils DockPad jusqu’à leur reconnexion (/mcp).</value>
+    <value>Les sessions restent ouvertes. Elles perdent l&apos;accès à {AppName} jusqu&apos;à leur reconnexion.</value>
   </data>
   <data name="Update_ProgramHelp" xml:space="preserve">
     <value>Fermer ce programme ferme ses fenêtres. Mieux vaut le fermer vous-même, puis Réessayer.</value>
@@ -208,7 +208,7 @@
     <value>{0} {0:plural:programme ne s’est pas fermé|programmes ne se sont pas fermés}</value>
   </data>
   <data name="Update_IncompleteHelp" xml:space="preserve">
-    <value>Ces programmes utilisent encore des fichiers de DockPad. Fermez-les vous-même ou forcez leur arrêt pour continuer.</value>
+    <value>Ces programmes utilisent encore des fichiers de {AppName}. Fermez-les vous-même ou forcez leur arrêt pour continuer.</value>
   </data>
   <data name="Update_OtherPrograms" xml:space="preserve">
     <value>ENCORE OUVERTS, NON COCHÉS</value>
@@ -229,12 +229,42 @@
     <value>Certains programmes sont encore ouverts. L’installation les arrêtera de force, sans enregistrer leur travail.</value>
   </data>
   <data name="Update_IncompleteHelpAskToQuit" xml:space="preserve">
-    <value>Certains programmes sont encore ouverts. Le programme d’installation leur demandera de quitter ; ceux qui refusent empêcheront l’installation.</value>
+    <value>Certains programmes sont encore ouverts. L&apos;installation leur demandera de quitter. Ceux qui ne quittent pas risquent d&apos;être interrompus sans enregistrer leur travail.</value>
   </data>
   <data name="Update_BlockedHelpAskToQuit" xml:space="preserve">
-    <value>Le programme d’installation demandera aux programmes encore ouverts de quitter. Ceux qui refusent empêcheront l’installation.</value>
+    <value>L&apos;installation demandera aux programmes encore ouverts de quitter. Ceux qui ne quittent pas risquent d&apos;être interrompus sans enregistrer leur travail.</value>
   </data>
   <data name="Update_ProcessUnavailable" xml:space="preserve">
     <value>informations indisponibles · PID {0}</value>
+  </data>
+  <data name="Update_CloseResult_AccessDenied" xml:space="preserve">
+    <value>Accès refusé</value>
+  </data>
+  <data name="Update_CloseResult_Closed" xml:space="preserve">
+    <value>Fermé</value>
+  </data>
+  <data name="Update_CloseResult_Gone" xml:space="preserve">
+    <value>Déjà terminé</value>
+  </data>
+  <data name="Update_CloseResult_IdentityChanged" xml:space="preserve">
+    <value>Identité du processus modifiée</value>
+  </data>
+  <data name="Update_CloseResult_StillRunning" xml:space="preserve">
+    <value>Encore ouvert</value>
+  </data>
+  <data name="Update_CloseWindow" xml:space="preserve">
+    <value>Fermer</value>
+  </data>
+  <data name="Update_ConfirmInstall" xml:space="preserve">
+    <value>Confirmer et installer</value>
+  </data>
+  <data name="Update_ConfirmTitle" xml:space="preserve">
+    <value>Confirmer l&apos;installation</value>
+  </data>
+  <data name="Update_InstallIgnoring" xml:space="preserve">
+    <value>Installer sans les fermer</value>
+  </data>
+  <data name="Update_ScanIncomplete" xml:space="preserve">
+    <value>Détection incomplète : certains processus n&apos;ont pas pu être identifiés.</value>
   </data>
 </root>
