@@ -2,11 +2,10 @@
 
 ## 0.3.0 — 2026-11-07
 
-- `MacUpdateBlockerFinder` utilise le contrat 0.2.0 : chemins multiples, inclusion facultative du processus courant et classifieur recevant la requête.
-- Les processus Mac illisibles restent listés avec `Unavailable` et rendent le scan `Incomplete` ; l'adaptateur 0.1.0 est retiré.
-- La fermeture Mac restitue les cinq résultats du contrat et accepte l'annulation, en conservant le signal lié à l'identité et le délai de cinq secondes.
+- Nouveau paquet `Mue.Avalonia` (Avalonia 12.1.4, .NET 8 et .NET 10) : fenêtres de mise à jour et de bloqueurs, indicateur autonome 40/26 px, ressources dynamiques et repli clair/sombre de faible priorité. Même parcours que `Mue.Wpf`.
+- Détection macOS : `MacUpdateBlockerFinder` (macOS 15+) sur le contrat 0.2.0. Un processus dont le chemin est illisible est ignoré, comme sous Windows sans signalement du Restart Manager ; un exécutable de l'appli dont l'identité est illisible reste `Unavailable`. La fermeture restitue les cinq résultats du contrat, accepte l'annulation et garde le signal lié à l'identité, avec un délai de cinq secondes.
 - Un `Summary` non nul impose un accord explicite avant `PrepareAsync`, même sans bloqueur ou après une liste vidée par Réessayer. Sans résumé, le parcours reste inchangé.
-- `Kill` et `AskToQuit` permettent d'ignorer les groupes décochés, y compris les processus illisibles. Le contrôle final tolère leurs seules identités PID/date ; les nouveaux processus restent bloquants. `Refuse` reste strict.
+- `Kill` et `AskToQuit` permettent d'ignorer les groupes décochés. Le contrôle final tolère leurs seules identités PID + heure de démarrage ; les nouveaux processus restent bloquants. Un bloqueur sans heure de démarrage ne peut jamais être ignoré : il faut le fermer. `Refuse` reste strict.
 - Les textes fr/en deviennent génériques : `UpdateTexts.AppName` remplace `{AppName}` avant formatage dans les seules ressources de Mue. Les textes des hôtes restent prioritaires et intacts.
 - Les aides `AskToQuit` annoncent la demande de quitter et le risque d'interruption sans enregistrement. Ajout des textes de confirmation, d'installation sans fermeture, de scan incomplet, de fermeture de fenêtre et des cinq résultats de fermeture (`UpdatePresentation.CloseResultText`).
 - Pour les hôtes WPF : le constructeur de `UpdateBlockersDialog` et son rafraîchissement reçoivent un `UpdateBlockerScan`. `Incomplete` affiche un avertissement ; `IgnoredBlockers` expose les identités acceptées. Les hôtes `Refuse` sans résumé conservent leur parcours et leur rendu lorsque le scan est complet.

@@ -5,7 +5,7 @@ param([string]$Feed = 'C:\Users\Sylvain\nuget-local', [string]$Version, [switch]
 $ErrorActionPreference = 'Stop'
 $Feed = [IO.Path]::GetFullPath($Feed)
 if (-not $Version) { $Version = ([xml](Get-Content "$PSScriptRoot/Directory.Build.props" -Raw)).Project.PropertyGroup.Version }
-$projects = @('Mue', 'Mue.Velopack', 'Mue.Wpf')
+$projects = @('Mue', 'Mue.Velopack', 'Mue.Wpf', 'Mue.Avalonia')
 foreach ($project in $projects) {
     if (Test-Path (Join-Path $Feed "$project.$version.nupkg")) {
         throw "Le paquet $project $version existe déjà dans $Feed. Augmenter la version avant de publier."

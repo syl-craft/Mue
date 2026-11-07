@@ -120,7 +120,7 @@ public class MacUpdateBlockerTests
     public async Task IncludingTheCurrentProcessOnlyAllowsDetection(bool unavailable)
     {
         var processes = new FakeProcesses();
-        processes.Add(99, unavailable ? null : Bundle + "/Contents/MacOS/Test",
+        processes.Add(99, Bundle + "/Contents/MacOS/Test",
             unavailable ? MacProcessState.Unavailable : MacProcessState.Readable);
         var operations = Create(processes);
         Assert.Empty(operations.Find(new([Bundle]), new Classifier(), enrich: true).Blockers);
@@ -164,7 +164,7 @@ public class MacUpdateBlockerTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void UninspectableProcessesRemainVisibleAndMakeTheScanIncomplete(bool enrich)
+    public void ProcessesWithoutPathAreSkippedAndUninspectableAppProcessesMakeTheScanIncomplete(bool enrich)
     {
         var processes = new FakeProcesses();
         processes.Add(42, null, state: MacProcessState.Unavailable);
@@ -177,8 +177,8 @@ public class MacUpdateBlockerTests
         var scan = operations.Find(UpdateBlockerQuery.ForDirectory(Bundle), classifier, enrich);
         Assert.True(scan.Incomplete);
         var blockers = scan.Blockers;
-        Assert.Equal(new[] { 42, 43, 45 }, blockers.Select(b => b.Pid).Order().ToArray());
-        Assert.Equal(new[] { 42, 43 }, blockers.Where(b => b.Unavailable).Select(b => b.Pid).Order().ToArray());
+        Assert.Equal(new[] { 43, 45 }, blockers.Select(b => b.Pid).Order().ToArray());
+        Assert.Equal(new[] { 43 }, blockers.Where(b => b.Unavailable).Select(b => b.Pid).Order().ToArray());
         Assert.All(blockers.Where(b => b.Unavailable), blocker =>
         {
             Assert.Equal(0, blocker.Started);
@@ -186,10 +186,7 @@ public class MacUpdateBlockerTests
             Assert.False(blocker.IsRelay);
             Assert.Equal(UpdateTexts.F("Update_ProcessUnavailable", blocker.Pid), blocker.Detail);
         });
-        var unknown = blockers.Where(b => b.Pid == 42).Single();
-        Assert.Equal("", unknown.File);
-        Assert.Equal(UpdateTexts.T("Update_UnknownProgram"), unknown.Name);
-        Assert.Equal(2, log.Messages.Count);
+        Assert.Single(log.Messages);
         Assert.Equal(enrich ? 1 : 0, classifier.Contexts.Count);
     }
 

@@ -1,0 +1,124 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <ResourceDictionary.ThemeDictionaries>
+    <ResourceDictionary x:Key="Light">
+      <SolidColorBrush x:Key="Brush.Accent" Color="#0067B8"/>
+      <SolidColorBrush x:Key="Brush.AccentBorderSoft" Color="#A9CDE9"/>
+      <SolidColorBrush x:Key="Brush.AccentSelected" Color="#CDE5F7"/>
+      <SolidColorBrush x:Key="Brush.AccentText" Color="#005A9E"/>
+      <SolidColorBrush x:Key="Brush.AccentTint" Color="#EDF6FC"/>
+      <SolidColorBrush x:Key="Brush.AccentTintStrong" Color="#DFEFFA"/>
+      <SolidColorBrush x:Key="Brush.Border" Color="#D5D5D5"/>
+      <SolidColorBrush x:Key="Brush.Danger" Color="#B42318"/>
+      <SolidColorBrush x:Key="Brush.DangerBorder" Color="#E8B4AF"/>
+      <SolidColorBrush x:Key="Brush.DangerSurface" Color="#FFF0EE"/>
+      <SolidColorBrush x:Key="Brush.Separator" Color="#E5E5E5"/>
+      <SolidColorBrush x:Key="Brush.Surface" Color="#F7F7F7"/>
+      <SolidColorBrush x:Key="Brush.SurfaceCard" Color="#FFFFFF"/>
+      <SolidColorBrush x:Key="Brush.SurfaceMuted" Color="#ECECEC"/>
+      <SolidColorBrush x:Key="Brush.Text" Color="#202020"/>
+      <SolidColorBrush x:Key="Brush.TextDetail" Color="#606060"/>
+      <SolidColorBrush x:Key="Brush.TextDisabled" Color="#707070"/>
+      <SolidColorBrush x:Key="Brush.TextLabel" Color="#505050"/>
+      <SolidColorBrush x:Key="Brush.TextSmall" Color="#505050"/>
+      <SolidColorBrush x:Key="Brush.TextSubtle" Color="#606060"/>
+      <SolidColorBrush x:Key="Brush.WarnTextAlt" Color="#795500"/>
+    </ResourceDictionary>
+    <ResourceDictionary x:Key="Dark">
+      <SolidColorBrush x:Key="Brush.Accent" Color="#69B8FF"/>
+      <SolidColorBrush x:Key="Brush.AccentBorderSoft" Color="#365B78"/>
+      <SolidColorBrush x:Key="Brush.AccentSelected" Color="#244E70"/>
+      <SolidColorBrush x:Key="Brush.AccentText" Color="#9ED2FF"/>
+      <SolidColorBrush x:Key="Brush.AccentTint" Color="#172D40"/>
+      <SolidColorBrush x:Key="Brush.AccentTintStrong" Color="#1E3B53"/>
+      <SolidColorBrush x:Key="Brush.Border" Color="#454545"/>
+      <SolidColorBrush x:Key="Brush.Danger" Color="#FF9B91"/>
+      <SolidColorBrush x:Key="Brush.DangerBorder" Color="#784640"/>
+      <SolidColorBrush x:Key="Brush.DangerSurface" Color="#3B2423"/>
+      <SolidColorBrush x:Key="Brush.Separator" Color="#383838"/>
+      <SolidColorBrush x:Key="Brush.Surface" Color="#202020"/>
+      <SolidColorBrush x:Key="Brush.SurfaceCard" Color="#292929"/>
+      <SolidColorBrush x:Key="Brush.SurfaceMuted" Color="#333333"/>
+      <SolidColorBrush x:Key="Brush.Text" Color="#F2F2F2"/>
+      <SolidColorBrush x:Key="Brush.TextDetail" Color="#BDBDBD"/>
+      <SolidColorBrush x:Key="Brush.TextDisabled" Color="#AAAAAA"/>
+      <SolidColorBrush x:Key="Brush.TextLabel" Color="#CCCCCC"/>
+      <SolidColorBrush x:Key="Brush.TextSmall" Color="#CCCCCC"/>
+      <SolidColorBrush x:Key="Brush.TextSubtle" Color="#BDBDBD"/>
+      <SolidColorBrush x:Key="Brush.WarnTextAlt" Color="#F4CE82"/>
+    </ResourceDictionary>
+  </ResourceDictionary.ThemeDictionaries>
+  <ControlTheme x:Key="SecondaryButton" TargetType="Button">
+    <Setter Property="Padding" Value="12,7"/>
+    <Setter Property="MinHeight" Value="34"/>
+    <Setter Property="CornerRadius" Value="4"/>
+    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="HorizontalContentAlignment" Value="Center"/>
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Text}"/>
+    <Setter Property="Background" Value="{DynamicResource Brush.SurfaceCard}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Border}"/>
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{TemplateBinding CornerRadius}" Padding="{TemplateBinding Padding}">
+          <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}"
+                            HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center"/>
+        </Border>
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^:pointerover"><Setter Property="Background" Value="{DynamicResource Brush.AccentTintStrong}"/></Style>
+    <Style Selector="^:pressed"><Setter Property="Background" Value="{DynamicResource Brush.AccentSelected}"/></Style>
+    <Style Selector="^:focus-visible"><Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent}"/></Style>
+    <Style Selector="^:disabled"><Setter Property="Opacity" Value="0.55"/></Style>
+  </ControlTheme>
+  <ControlTheme x:Key="PrimaryButton" TargetType="Button">
+    <Setter Property="Padding" Value="12,7"/>
+    <Setter Property="MinHeight" Value="34"/>
+    <Setter Property="CornerRadius" Value="4"/>
+    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="HorizontalContentAlignment" Value="Center"/>
+    <Setter Property="Foreground" Value="{DynamicResource Brush.AccentText}"/>
+    <Setter Property="Background" Value="{DynamicResource Brush.AccentTint}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent}"/>
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{TemplateBinding CornerRadius}" Padding="{TemplateBinding Padding}">
+          <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}"
+                            HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center"/>
+        </Border>
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^:pointerover"><Setter Property="Background" Value="{DynamicResource Brush.AccentTintStrong}"/></Style>
+    <Style Selector="^:pressed"><Setter Property="Background" Value="{DynamicResource Brush.AccentSelected}"/></Style>
+    <Style Selector="^:focus-visible"><Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent}"/></Style>
+    <Style Selector="^:disabled"><Setter Property="Opacity" Value="0.55"/></Style>
+  </ControlTheme>
+  <ControlTheme x:Key="DangerButton" TargetType="Button">
+    <Setter Property="Padding" Value="12,7"/>
+    <Setter Property="MinHeight" Value="34"/>
+    <Setter Property="CornerRadius" Value="4"/>
+    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="HorizontalContentAlignment" Value="Center"/>
+    <Setter Property="Foreground" Value="{DynamicResource Brush.Danger}"/>
+    <Setter Property="Background" Value="{DynamicResource Brush.DangerSurface}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.DangerBorder}"/>
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{TemplateBinding CornerRadius}" Padding="{TemplateBinding Padding}">
+          <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}"
+                            HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center"/>
+        </Border>
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^:pointerover"><Setter Property="Background" Value="{DynamicResource Brush.AccentTintStrong}"/></Style>
+    <Style Selector="^:pressed"><Setter Property="Background" Value="{DynamicResource Brush.AccentSelected}"/></Style>
+    <Style Selector="^:focus-visible"><Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent}"/></Style>
+    <Style Selector="^:disabled"><Setter Property="Opacity" Value="0.55"/></Style>
+  </ControlTheme>
+  <ControlTheme x:Key="DialogFooter" TargetType="Border">
+    <Setter Property="Background" Value="{DynamicResource Brush.SurfaceCard}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource Brush.Separator}"/>
+    <Setter Property="BorderThickness" Value="0,1,0,0"/>
+  </ControlTheme>
+</ResourceDictionary>
