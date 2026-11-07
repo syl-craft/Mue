@@ -144,6 +144,10 @@ public sealed class UpdateConsentTests
         {
             dialog.Show();
             var selection = Assert.Single(dialog.GetVisualDescendants().OfType<CheckBox>());
+            // La liaison ne tient sa source que faiblement : un ramasse-miettes ne doit pas perdre le groupe coché.
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
             selection.IsChecked = false;
             Assert.False(host.Blockers[0].Selected);
             Assert.True(Fixtures.Control<Button>(dialog, "CloseButton").IsEnabled);

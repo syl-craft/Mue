@@ -23,6 +23,9 @@ public partial class UpdateBlockersDialog : Window
     public IReadOnlySet<(int Pid, long Started)> IgnoredBlockers => _ignored;
     private bool CanIgnore => _shutdownBehavior != UpdateShutdownBehavior.Refuse;
     private bool Confirming => _requiresConfirmation && _blockers.Count == 0;
+    // Une liaison Avalonia ne tient sa source que faiblement : sans ce champ, un groupe peut être collecté
+    // et la case décochée n'a plus d'effet.
+    private IReadOnlyList<UpdateBlockerGroup> _groups = [];
     private readonly HashSet<(int Pid, long Started)> _remaining = [];
     private readonly List<(UpdateBlocker Blocker, UpdateBlockerCloseResult Result)> _results = [];
     private IReadOnlyList<UpdateBlocker> _blockers = [];
@@ -78,8 +81,8 @@ public partial class UpdateBlockersDialog : Window
         foreach (var blocker in blockers.Where(b => _remaining.Contains((b.Pid, b.Started))))
             RemainingProcesses.Children.Add(ProcessRow(blocker));
         Processes.Children.Clear();
-        var groups = UpdateBlockerGroups.Group(blockers.Where(b => !_remaining.Contains((b.Pid, b.Started))).ToArray());
-        foreach (var group in groups)
+        _groups = UpdateBlockerGroups.Group(blockers.Where(b => !_remaining.Contains((b.Pid, b.Started))).ToArray());
+        foreach (var group in _groups)
         {
             var selection = new CheckBox
             {
