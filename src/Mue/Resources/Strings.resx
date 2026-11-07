@@ -279,4 +279,7 @@
   <data name="Update_Credit" xml:space="preserve">
     <value>Updates by Mue</value>
   </data>
+  <data name="Common_Close" xml:space="preserve">
+    <value>Close</value>
+  </data>
 </root>
