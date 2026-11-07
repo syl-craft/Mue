@@ -1,5 +1,9 @@
 # Historique
 
+## Non publié
+
+- README : la ligne de commande s'appelle sur l'exe de `current\`, le lanceur stable Velopack n'attendant pas l'appli et ne rendant pas son code de sortie (constat DockPad).
+
 ## 0.5.0 — 2026-11-07
 
 - Ligne de commande pour les scripts et les agents IA : `UpdateCommand.RunAsync(service, host, args, output, token)`, options `--check`, `--yes`, `--close-blockers`, `--restart`, `--json`, codes de sortie 0, 10, 20, 21, 22, 23 et 1. Même déroulé que la fenêtre, sans fenêtre ; le processus courant n'est jamais un bloqueur. JSON : `status`, `current`, `available`, `summary`, `blockers` (`name`, `pid`, `detail`, `relay`, `group`), `message`.
