@@ -1,5 +1,9 @@
 # Historique
 
+## 0.6.3 — 2026-11-07
+
+- Correctif de la pastille : à l'appui sans nouvelle version, le fond `Brush.Border` rendait le texte invisible en contraste élevé (couleur du texte système des deux côtés, 1:1). L'appui garde le fond `Brush.SurfaceMuted` et prend un contour `Brush.Accent` (WPF et Avalonia). Test : chaque fond de la pastille garde son texte lisible (AA) en clair, en sombre et en contraste élevé. Signalé par PicaLite.
+
 ## 0.6.2 — 2026-11-07
 
 - Style par défaut de la pastille `UpdateBadge` (WPF et Avalonia) : police de la fenêtre en 12 px au lieu de Consolas 11 ; au repos, marge intérieure 10 px et contour `Brush.Border` (la pastille WPF était un cercle dont « v1.2.0 » débordait, le contour Avalonia était invisible) ; texte `Brush.TextLabel`. Aspect avec nouvelle version inchangé hors police. Au repos, retour au survol (`SurfaceMuted`) et à l'appui (`Border`). Remarques de PicaLite.

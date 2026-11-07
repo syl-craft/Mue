@@ -62,10 +62,11 @@ public sealed class UpdateBadge : Button
         if (_badge == null) return;
         // Sans nouvelle version, le clic ouvre aussi la fenêtre : retour au survol et à l'appui.
         var background = !HasRelease
-            ? IsPressed ? "Brush.Border" : IsPointerOver ? "Brush.SurfaceMuted" : "Brush.SurfaceCard"
+            ? IsPressed || IsPointerOver ? "Brush.SurfaceMuted" : "Brush.SurfaceCard"
             : IsPressed ? "Brush.AccentSelected" : IsPointerOver ? "Brush.AccentTintStrong" : "Brush.AccentTint";
         _badge.Bind(Border.BackgroundProperty, new DynamicResourceExtension(background));
-        _badge.Bind(Border.BorderBrushProperty, new DynamicResourceExtension(IsFocused ? "Brush.Accent"
+        // L'appui se distingue du survol par le contour d'accent (pas de fond Brush.Border, illisible en contraste élevé).
+        _badge.Bind(Border.BorderBrushProperty, new DynamicResourceExtension(IsFocused || (IsPressed && !HasRelease) ? "Brush.Accent"
             : HasRelease ? "Brush.AccentBorderSoft" : "Brush.Border"));
         Bind(ForegroundProperty, new DynamicResourceExtension(HasRelease ? "Brush.AccentText" : "Brush.TextLabel"));
     }
