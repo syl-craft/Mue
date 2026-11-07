@@ -33,7 +33,26 @@ public static class UpdateCommand
     {
         var options = CommandOptions.Parse(args);
         var report = new Report(service.CurrentVersion);
-        var code = await UpdateAsync(service, host, options, report, token);
+        int code;
+        try
+        {
+            code = await UpdateAsync(service, host, options, report, token);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            code = report.End(Failed, "error", "Cancelled");
+        }
+        catch (Exception ex)
+        {
+            // Toute issue produit un rapport : un script ou un agent lit toujours un seul objet JSON.
+            host.Log.Warn(ex, "Cannot update from the command line");
+            code = report.End(Failed, "error", ex.Message);
+        }
+        finally
+        {
+            // Sans effet une fois l'outil de mise à jour lancé (état Installing) ou hors préparation.
+            service.CancelPreparation();
+        }
         Write(output, options.Json, report);
         return code;
     }
@@ -44,40 +63,37 @@ public static class UpdateCommand
         if (service.State == UpdateState.Unavailable)
             return report.End(Unavailable, "unavailable", UpdateTexts.T("Update_Unavailable"));
 
-        await service.CheckAsync();
+        token.ThrowIfCancellationRequested();
+        if (service.State != UpdateState.Ready)
+        {
+            if (service.CanCheck == false) return report.End(Failed, "error", UpdateTexts.T("Update_Checking"));
+            // Une recherche refusée par l'hôte (CanSearch) n'établit pas que l'appli est à jour.
+            if (await service.TryCheckAsync() == false) return report.End(Refused, "refused", UpdateTexts.T("Update_NotChecked"));
+        }
         if (service.State == UpdateState.Failed) return report.End(Failed, "error", UpdateTexts.T("Update_Failed"));
         if (service.Release is not { } release) return report.End(Done, "up-to-date", UpdateTexts.T("Update_UpToDate"));
         report.Available = release.Version;
         if (options.CheckOnly) return report.End(Available, "available", UpdateTexts.F("Update_Available", release.Version));
 
-        if (await service.DownloadAsync() == false) return report.End(Failed, "error", UpdateTexts.T("Update_Failed"));
+        token.ThrowIfCancellationRequested();
+        using (token.Register(service.CancelDownload))
+            if (await service.DownloadAsync() == false)
+            {
+                token.ThrowIfCancellationRequested();
+                return report.End(Failed, "error", UpdateTexts.T("Update_Failed"));
+            }
+        token.ThrowIfCancellationRequested();
         service.BeginPreparation();
-        try
-        {
-            return await InstallAsync(service, host, options, report, token);
-        }
-        catch (Exception ex)
-        {
-            host.Log.Warn(ex, "Cannot apply update from the command line");
-            return report.End(Failed, "error", ex.Message);
-        }
-        finally
-        {
-            // Sans effet une fois l'outil de mise à jour lancé : l'état est alors Installing.
-            service.CancelPreparation();
-        }
-    }
 
-    private static async Task<int> InstallAsync(UpdateService service, IUpdateDialogHost host, CommandOptions options,
-        Report report, CancellationToken token)
-    {
         var check = await host.CheckAsync(Owner, token);
         report.Summary = check.Summary;
         if (check.CanContinue == false) return report.End(Refused, "refused", UpdateTexts.T("Update_Failed"));
         if (check.Summary != null && options.Yes == false)
             return report.End(ConsentRequired, "consent-required", check.Summary);
 
-        var query = service.BlockerQuery;
+        // La commande tourne dans l'exe de l'appli : son propre processus n'est jamais un bloqueur, quelle que soit
+        // la requête du backend.
+        var query = service.BlockerQuery with { IncludeCurrentProcess = false };
         var scan = host.Finder.Find(query, host.Classifier);
         if (scan.Blockers.Count > 0 && options.CloseBlockers)
         {
@@ -92,6 +108,7 @@ public static class UpdateCommand
         if (finalScan.Blockers.Count > 0) return report.Blocked(finalScan.Blockers);
 
         if (await host.PrepareAsync(Owner, token) == false) return report.End(Refused, "refused", UpdateTexts.T("Update_Failed"));
+        token.ThrowIfCancellationRequested();
         host.BeforeApply();
         try { service.Apply(silent: true, restart: options.Restart); }
         catch { host.ApplyFailed(); throw; }

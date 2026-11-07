@@ -37,13 +37,17 @@ public partial class App : Application
     /// </summary>
     private static async Task<int> UpdateFromCommandLineAsync(string[] args)
     {
-        AttachConsole(AttachParentProcess);
+        // S'attacher à la console du parent remplacerait une sortie redirigée (fichier, tube) : seulement sans redirection.
+        if (GetStdHandle(StandardOutput) == IntPtr.Zero) AttachConsole(AttachParentProcess);
         using var output = new StreamWriter(Console.OpenStandardOutput()) { AutoFlush = true };
         using var service = DemoService();
         return await UpdateCommand.RunAsync(service, new DemoHost(), args, output);
     }
 
     private const int AttachParentProcess = -1;
+    private const int StandardOutput = -11;
+    [System.Runtime.InteropServices.DllImport("kernel32.dll")]
+    private static extern IntPtr GetStdHandle(int handle);
     [System.Runtime.InteropServices.DllImport("kernel32.dll")]
     private static extern bool AttachConsole(int processId);
 

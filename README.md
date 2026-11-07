@@ -264,8 +264,8 @@ For scripts and AI agents: install or update without any window. Updating from t
 **First install.** The Velopack installer of your app installs silently (checked on Velopack 1.2.161):
 
 ```powershell
-MyApp-win-Setup.exe --silent                   # -s: no dialog, answers yes to every prompt
-MyApp-win-Setup.exe --silent --installto D:\Apps\MyApp --log setup.log
+.\MyApp-win-Setup.exe --silent                 # -s: no dialog, answers yes to every prompt
+.\MyApp-win-Setup.exe --silent --installto D:\Apps\MyApp --log setup.log
 ```
 
 **Update.** The app relays a verb of its own command line to `UpdateCommand`, with the same `IUpdateDialogHost`
@@ -283,7 +283,7 @@ without any window. The command never counts its own process among the blockers.
 |---|---|
 | `--check` | Search only |
 | `--yes` | Accept the summary announced by the host (`UpdatePreparationCheck.Summary`) |
-| `--close-blockers` | Close the programs using the app's files (soft close), MCP relays and **the app's own open windows** included |
+| `--close-blockers` | Close the programs using the app's files, **the app's own open windows** included: soft close, except MCP relays, which the Windows finder stops directly (as in the window) |
 | `--restart` | Restart the app after installing (default: no restart, the script decides) |
 | `--json` | Write a single JSON object |
 
@@ -303,7 +303,8 @@ JSON: `status`, `current`, `available` (target version), `summary`, `blockers` (
 - **Code 0 `updated` comes before the end of the copy**: Velopack replaces the files once the app has exited. To know
   when it is done, run `update --check --json` again until `status` is `up-to-date` and `current` equals the
   `available` version you got.
-- **A windowed app (WinExe) is not awaited** by a plain call from PowerShell or cmd. Checked on the sample app:
+- **A windowed app (WinExe) is not awaited** by a plain call from PowerShell or an interactive cmd prompt. Checked on
+  the sample app:
 
 ```powershell
 $result = & .\MyApp.exe update --json | Out-String   # waits, captures the JSON; code in $LASTEXITCODE
@@ -311,9 +312,11 @@ $p = Start-Process .\MyApp.exe -ArgumentList "update --json" -Wait -PassThru -No
 $p.ExitCode
 ```
 
-  With cmd, `start /wait "" MyApp.exe update --json` gives the code in `%ERRORLEVEL%` but not the output: use
-  PowerShell to read the JSON. A WinExe writes to the console only after `AttachConsole(ATTACH_PARENT_PROCESS)`, or to
-  a redirected output.
+  In a `.cmd` script, cmd waits for a windowed app: `MyApp.exe update --json > out.json` gives the code in
+  `%ERRORLEVEL%` and the JSON in the file. At an interactive cmd prompt, `start /wait "" MyApp.exe update --json` gives
+  the code but not the output. A WinExe writes to the console only after `AttachConsole(ATTACH_PARENT_PROCESS)`: call it
+  **only when the output is not redirected** (`GetStdHandle(STD_OUTPUT_HANDLE)` returns 0), otherwise the console
+  replaces the redirection and the JSON is lost.
 - **An app in the notification area** may answer `StillRunning` to a soft close if its window hides instead of
   quitting. The host handles it: relay `update` to the running instance, or make it quit on a soft close.
 - **macOS:** silent mode is not yet checked on a real machine.

@@ -121,9 +121,13 @@ public sealed class UpdateService : INotifyPropertyChanged, IDisposable
     private void LanguageChanged(object? sender, EventArgs e) => Notify();
     private void Notify() => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(null));
     public Task CheckAsync() => CheckAsync(automatic: false);
-    private async Task CheckAsync(bool automatic)
+
+    /// <summary>Recherche manuelle ; faux si elle n'a pas eu lieu (permission refusée, recherche en cours, version prête).</summary>
+    internal Task<bool> TryCheckAsync() => CheckAsync(automatic: false);
+
+    private async Task<bool> CheckAsync(bool automatic)
     {
-        if (!_options.CanSearch() || !CanCheck || State == UpdateState.Ready) return;
+        if (!_options.CanSearch() || !CanCheck || State == UpdateState.Ready) return false;
         using var search = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         _search = search;
         _automaticSearch = automatic;
@@ -144,6 +148,7 @@ public sealed class UpdateService : INotifyPropertyChanged, IDisposable
         catch (Exception ex) { _options.Log.Warn(ex, "Update check failed"); State = UpdateState.Failed; }
         finally { _search = null; _automaticSearch = false; }
         Notify();
+        return true;
     }
     public async Task<bool> DownloadAsync()
     {

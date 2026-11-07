@@ -87,6 +87,7 @@ public sealed class UpdateCommandTests
         Assert.Equal("Preview", blockers[1].GetProperty("group").GetString());
         Assert.Empty(host.CloseAttempts);
         Assert.DoesNotContain("prepare", host.Calls);
+        Assert.Equal(UpdateState.Ready, LastState);
     }
 
     [Fact]
@@ -125,6 +126,7 @@ public sealed class UpdateCommandTests
         Assert.Equal("consent-required", json.GetProperty("status").GetString());
         Assert.Equal("2 profiles will be migrated.", json.GetProperty("summary").GetString());
         Assert.DoesNotContain("prepare", host.Calls);
+        Assert.Equal(UpdateState.Ready, LastState);
 
         var (accepted, _, _) = await Run(Backend(), new CommandHost { Summary = "2 profiles will be migrated." }, "--yes");
         Assert.Equal(UpdateCommand.Done, accepted);
@@ -141,6 +143,64 @@ public sealed class UpdateCommandTests
         Assert.Equal(UpdateCommand.Refused, code);
         Assert.Equal("refused", json.GetProperty("status").GetString());
         Assert.Equal(0, backend.Applies);
+        Assert.Equal(UpdateState.Ready, LastState);
+    }
+
+    [Fact]
+    public async Task The_current_process_is_excluded_even_if_the_backend_includes_it()
+    {
+        var host = new CommandHost();
+        var backend = new IncludingBackend(Backend());
+        await Run(backend, host, null, default);
+
+        Assert.True(backend.BlockerQuery.IncludeCurrentProcess);
+        Assert.NotEmpty(host.Queries);
+        Assert.All(host.Queries, query => Assert.False(query.IncludeCurrentProcess));
+        Assert.All(host.Queries, query => Assert.Equal(backend.BlockerQuery.Paths, query.Paths));
+    }
+
+    [Fact]
+    public async Task A_search_refused_by_the_host_is_not_reported_as_up_to_date()
+    {
+        var (code, json, _) = await Run(Backend(), new CommandHost(), new UpdateServiceOptions { CanSearch = () => false }, default);
+
+        Assert.Equal(UpdateCommand.Refused, code);
+        Assert.Equal("refused", json.GetProperty("status").GetString());
+    }
+
+    [Fact]
+    public async Task An_unexpected_exception_still_writes_one_json_object()
+    {
+        var (code, json, _) = await Run(Backend(), new CommandHost(),
+            new UpdateServiceOptions { CanSearch = () => throw new InvalidOperationException("settings unreadable") }, default);
+
+        Assert.Equal(UpdateCommand.Failed, code);
+        Assert.Equal("error", json.GetProperty("status").GetString());
+        Assert.Equal("settings unreadable", json.GetProperty("message").GetString());
+    }
+
+    [Fact]
+    public async Task Cancellation_stops_before_installing()
+    {
+        var backend = Backend();
+        using var cancel = new CancellationTokenSource();
+        var host = new CommandHost { OnCheck = cancel.Cancel };
+        var (code, json, _) = await Run(backend, host, null, cancel.Token);
+
+        Assert.Equal(UpdateCommand.Failed, code);
+        Assert.Equal("error", json.GetProperty("status").GetString());
+        Assert.Equal(0, backend.Applies);
+        Assert.DoesNotContain("prepare", host.Calls);
+        Assert.Equal(UpdateState.Ready, LastState);
+    }
+
+    [Fact]
+    public void A_backend_without_silent_mode_installs_as_before()
+    {
+        var backend = new MinimalBackend();
+        ((IUpdateBackend)backend).Apply(new UpdateRelease("1.3.0", "", new object()), silent: true, restart: false);
+
+        Assert.Equal(1, backend.Applies);
     }
 
     [Theory]
@@ -200,6 +260,8 @@ public sealed class UpdateCommandTests
         Assert.Equal(["--after-update"], received.Value.Args);
     }
 
+    private static UpdateState LastState;
+
     private static FakeUpdateBackend Backend() => new()
     {
         CurrentVersion = "1.2.0",
@@ -207,15 +269,43 @@ public sealed class UpdateCommandTests
         ContentDirectory = Path.GetTempPath(),
     };
 
-    private static async Task<(int Code, JsonElement Json, CommandHost Host)> Run(FakeUpdateBackend backend, CommandHost host,
-        params string[] args)
+    private static Task<(int Code, JsonElement Json, CommandHost Host)> Run(FakeUpdateBackend backend, CommandHost host,
+        params string[] args) => Run((IUpdateBackend)backend, host, null, default, args);
+
+    private static async Task<(int Code, JsonElement Json, CommandHost Host)> Run(IUpdateBackend backend, CommandHost host,
+        UpdateServiceOptions? options, CancellationToken token, params string[] args)
     {
         using var output = new StringWriter(CultureInfo.InvariantCulture);
-        using var service = new UpdateService(backend);
-        var code = await UpdateCommand.RunAsync(service, host, [.. args, "--json"], output);
+        using var service = new UpdateService(backend, options);
+        var code = await UpdateCommand.RunAsync(service, host, [.. args, "--json"], output, token);
+        LastState = service.State;
         // Un seul objet JSON valide, quelle que soit l'issue.
         using var document = JsonDocument.Parse(output.ToString());
         return (code, document.RootElement.Clone(), host);
+    }
+
+    /// <summary>Backend dont la requête inclut le processus courant : la commande doit l'exclure malgré tout.</summary>
+    private sealed class IncludingBackend(FakeUpdateBackend inner) : IUpdateBackend
+    {
+        public bool IsInstalled => inner.IsInstalled;
+        public string CurrentVersion => inner.CurrentVersion;
+        public string ContentDirectory => inner.ContentDirectory;
+        public UpdateBlockerQuery BlockerQuery { get; } = new([inner.ContentDirectory], IncludeCurrentProcess: true);
+        public Task<UpdateRelease?> CheckAsync(CancellationToken token) => inner.CheckAsync(token);
+        public Task DownloadAsync(UpdateRelease release, Action<int> progress, CancellationToken token) => inner.DownloadAsync(release, progress, token);
+        public void Apply(UpdateRelease release) => inner.Apply(release);
+    }
+
+    /// <summary>Backend 0.4.1 : ne connaît que Apply(release).</summary>
+    private sealed class MinimalBackend : IUpdateBackend
+    {
+        public int Applies { get; private set; }
+        public bool IsInstalled => true;
+        public string CurrentVersion => "1.2.0";
+        public string ContentDirectory => Path.GetTempPath();
+        public Task<UpdateRelease?> CheckAsync(CancellationToken token) => Task.FromResult<UpdateRelease?>(null);
+        public Task DownloadAsync(UpdateRelease release, Action<int> progress, CancellationToken token) => Task.CompletedTask;
+        public void Apply(UpdateRelease release) => Applies++;
     }
 
     private sealed class CommandHost : IUpdateDialogHost, IUpdateBlockerFinder
@@ -225,6 +315,7 @@ public sealed class UpdateCommandTests
         public bool CanContinue { get; init; } = true;
         public bool CanPrepare { get; init; } = true;
         public bool ClosedOnRequest { get; init; }
+        public Action? OnCheck { get; init; }
         public List<string> Calls { get; } = [];
         public List<object> Owners { get; } = [];
         public List<UpdateBlockerQuery> Queries { get; } = [];
@@ -239,6 +330,8 @@ public sealed class UpdateCommandTests
         public Task<UpdatePreparationCheck> CheckAsync(object owner, CancellationToken token)
         {
             Calls.Add("check"); Owners.Add(owner);
+            OnCheck?.Invoke();
+            token.ThrowIfCancellationRequested();
             return Task.FromResult(new UpdatePreparationCheck(CanContinue, Summary));
         }
         public Task<bool> PrepareAsync(object owner, CancellationToken token) { Calls.Add("prepare"); return Task.FromResult(CanPrepare); }
