@@ -1,5 +1,9 @@
 # Historique
 
+## 0.4.1 — 2026-11-07
+
+- `VelopackBackend` sans `VelopackApp.Run` ni locator explicite (tests qui lancent l'appli complète) : construction sans exception, `IsInstalled` faux (état `Unavailable`), `CurrentVersion` = `FallbackVersion`, aucune recherche ni requête réseau, y compris par le planificateur automatique. `DownloadAsync` et `Apply` lèvent `InvalidOperationException`. Rien ne change avec un locator.
+
 ## 0.4.0 — 2026-11-07
 
 - Textes : `UpdateTextKeys.All` et `UpdateTextKeys.Missing(IUpdateTexts)`. Une langue n'entre que complète (test). Trois clés : `Update_ConfirmHelpForced`, `Update_ConfirmHelpAskToQuit`, `Update_Download`.
