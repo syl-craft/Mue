@@ -6,5 +6,6 @@
   <ItemGroup>
     <ProjectReference Include="../Mue/Mue.csproj" />
     <PackageReference Include="Velopack" Version="[1.2.161]" />
+    <InternalsVisibleTo Include="Mue.Tests" />
   </ItemGroup>
 </Project>

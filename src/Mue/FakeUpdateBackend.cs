@@ -47,4 +47,13 @@ public sealed class FakeUpdateBackend : IUpdateBackend
         Applies++;
         if (ApplyFailure is { } error) throw error;
     }
+
+    /// <summary>Dernière installation demandée avec ses réglages : (silencieuse, relancée), ou <c>null</c>.</summary>
+    public (bool Silent, bool Restart)? LastApplyMode { get; private set; }
+
+    public void Apply(UpdateRelease release, bool silent, bool restart)
+    {
+        LastApplyMode = (silent, restart);
+        Apply(release);
+    }
 }

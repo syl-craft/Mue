@@ -59,9 +59,17 @@ public sealed class VelopackBackend : IUpdateBackend
     }
     public Task DownloadAsync(UpdateRelease release, Action<int> progress, CancellationToken token) =>
         RequireManager().DownloadUpdatesAsync((UpdateInfo)release.Package, progress, token);
-    public void Apply(UpdateRelease release) => RequireManager().WaitExitThenApplyUpdates(
-        ((UpdateInfo)release.Package).TargetFullRelease, silent: false, restart: true,
-        restartArgs: _options.RestartArgs);
+    public void Apply(UpdateRelease release) => Apply(release, silent: false, restart: true);
+
+    public void Apply(UpdateRelease release, bool silent, bool restart)
+    {
+        var manager = RequireManager();
+        ApplyUpdates(manager, ((UpdateInfo)release.Package).TargetFullRelease, silent, restart, _options.RestartArgs);
+    }
+
+    // Couture de test : UpdateManager.WaitExitThenApplyUpdates n'est pas virtuelle.
+    internal static Action<UpdateManager, VelopackAsset, bool, bool, string[]> ApplyUpdates { get; set; } =
+        (manager, asset, silent, restart, args) => manager.WaitExitThenApplyUpdates(asset, silent, restart, args);
 
     private UpdateManager RequireManager() => _manager
         ?? throw new InvalidOperationException("Velopack is not initialised: call VelopackApp.Run at startup or pass a locator.");

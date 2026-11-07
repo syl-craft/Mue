@@ -1,5 +1,12 @@
 # Historique
 
+## 0.5.0 — 2026-11-07
+
+- Ligne de commande pour les scripts et les agents IA : `UpdateCommand.RunAsync(service, host, args, output, token)`, options `--check`, `--yes`, `--close-blockers`, `--restart`, `--json`, codes de sortie 0, 10, 20, 21, 22, 23 et 1. Même déroulé que la fenêtre, sans fenêtre ; le processus courant n'est jamais un bloqueur. JSON : `status`, `current`, `available`, `summary`, `blockers` (`name`, `pid`, `detail`, `relay`, `group`), `message`.
+- `IUpdateBackend.Apply(release, silent, restart)`, méthode par défaut qui renvoie à `Apply(release)` ; `UpdateService.Apply(silent, restart)`. `VelopackBackend` transmet `silent` et `restart` à Velopack ; la fenêtre garde `Apply()` (avec fenêtre de progression, relancement).
+- README : première installation silencieuse (`Setup.exe --silent`, vérifié sur Velopack 1.2.161), formes PowerShell et cmd vérifiées pour attendre une appli WinExe, attente de la fin de la copie après le code 0. macOS : mode silencieux non vérifié sur une vraie machine.
+- `samples/Mue.Sample.Wpf` : verbe `update`.
+
 ## 0.4.1 — 2026-11-07
 
 - `VelopackBackend` sans `VelopackApp.Run` ni locator explicite (tests qui lancent l'appli complète) : construction sans exception, `IsInstalled` faux (état `Unavailable`), `CurrentVersion` = `FallbackVersion`, aucune recherche ni requête réseau, y compris par le planificateur automatique. `DownloadAsync` et `Apply` lèvent `InvalidOperationException`. Rien ne change avec un locator.
