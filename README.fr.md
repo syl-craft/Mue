@@ -297,7 +297,7 @@ sealed class AppLanguageTexts : IUpdateTexts
 
 ## Thèmes
 
-`Mue.MueStyleKeys.Required` est la liste unique des ressources lues par les fenêtres, commune à WPF et Avalonia
+`Mue.UpdateStyleKeys.Required` est la liste unique des ressources lues par les fenêtres, commune à WPF et Avalonia
 (`Mue.Wpf.MueStyleKeys` et `Mue.Avalonia.MueStyleKeys` y renvoient). Les jeux par défaut ont un accent bleu
 neutre et respectent le contraste WCAG AA, en clair et en sombre.
 

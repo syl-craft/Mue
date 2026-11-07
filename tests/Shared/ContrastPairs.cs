@@ -19,6 +19,10 @@ internal static class ContrastPairs
         ("Brush.AccentText", "Brush.Surface"), ("Brush.AccentText", "Brush.AccentTint"), ("Brush.AccentText", "Brush.AccentSelected"),
         ("Brush.Danger", "Brush.Surface"), ("Brush.Danger", "Brush.DangerSurface"),
         ("Brush.WarnTextAlt", "Brush.SurfaceCard"),
+        // Boutons Avalonia survolés et enfoncés (Defaults.axaml) : le texte garde sa couleur, le fond change.
+        ("Brush.Text", "Brush.AccentTintStrong"), ("Brush.Text", "Brush.AccentSelected"),
+        ("Brush.AccentText", "Brush.AccentTintStrong"),
+        ("Brush.Danger", "Brush.AccentTintStrong"), ("Brush.Danger", "Brush.AccentSelected"),
     ];
 
     /// <summary>Couples sous le niveau AA, avec leur ratio, pour un message d'échec lisible.</summary>

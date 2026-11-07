@@ -3,7 +3,7 @@ namespace Mue;
 /// <summary>
 /// Ressources que les fenêtres de Mue lisent chez l'hôte, communes à Mue.Wpf et Mue.Avalonia.
 /// </summary>
-public static class MueStyleKeys
+public static class UpdateStyleKeys
 {
     public static IReadOnlyList<string> Brushes { get; } = Array.AsReadOnly(new[]
     {

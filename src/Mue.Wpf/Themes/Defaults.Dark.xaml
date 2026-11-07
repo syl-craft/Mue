@@ -8,7 +8,7 @@
     <SolidColorBrush x:Key="Brush.AccentTint" Color="#172D40"/>
     <SolidColorBrush x:Key="Brush.AccentTintStrong" Color="#1E3B53"/>
     <SolidColorBrush x:Key="Brush.Border" Color="#454545"/>
-    <SolidColorBrush x:Key="Brush.Danger" Color="#FF9B91"/>
+    <SolidColorBrush x:Key="Brush.Danger" Color="#FFB4AB"/>
     <SolidColorBrush x:Key="Brush.DangerBorder" Color="#784640"/>
     <SolidColorBrush x:Key="Brush.DangerSurface" Color="#3B2423"/>
     <SolidColorBrush x:Key="Brush.Separator" Color="#383838"/>

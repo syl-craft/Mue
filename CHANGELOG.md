@@ -3,12 +3,14 @@
 ## 0.4.0 — 2026-11-07
 
 - Textes : `UpdateTextKeys.All` et `UpdateTextKeys.Missing(IUpdateTexts)`. Une langue n'entre que complète (test). Trois clés : `Update_ConfirmHelpForced`, `Update_ConfirmHelpAskToQuit`, `Update_Download`.
-- Styles : liste unique `Mue.MueStyleKeys` (`Brushes`, `Styles`, `Required`) ; `Mue.Wpf.MueStyleKeys` et `Mue.Avalonia.MueStyleKeys` y renvoient. Enum `MueTheme { System, Light, Dark }`.
+- Styles : liste unique `Mue.UpdateStyleKeys` (`Brushes`, `Styles`, `Required`) ; `Mue.Wpf.MueStyleKeys` et `Mue.Avalonia.MueStyleKeys` y renvoient. Enum `MueTheme { System, Light, Dark }`.
 - Mue.Wpf : jeu sombre par défaut, `AddMissingDefaults(app, theme)`, `SetTheme(app, theme)` et `SetTheme(app, null)`, barre de titre sombre, `ManageTitleBar`, événement `WindowOpened`. Sans appel de l'hôte, aucun changement de ressource, de barre de titre ni d'abonnement. Mue ne remplace que les valeurs qu'il a ajoutées. Contraste élevé : couleurs système, barre de titre laissée à Windows.
 - **Changement de comportement** : `AddMissingDefaults(app)` vaut `System` (clair seul en 0.3.0) et gère la barre de titre ; `ManageTitleBar = false` la laisse à l'hôte.
 - Confirmation : avec `Kill` ou `AskToQuit`, l'aide reste visible (WPF et Avalonia).
 - `UpdatesDialogOptions` (WPF et Avalonia) : `SeparateInstallStep` (téléchargement puis installation en deux clics) et `ShowBlockers`. Constructeurs 0.3.0 conservés ; l'appel littéral `new UpdatesDialog(service, host, null)` devient ambigu à la compilation (source seulement).
-- Tests de contraste WCAG AA des jeux par défaut, WPF et Avalonia, clair et sombre.
+- Tests de contraste WCAG AA des jeux par défaut, WPF et Avalonia, clair et sombre, y compris les boutons survolés et enfoncés. Le rouge sombre par défaut passe de `#FF9B91` à `#FFB4AB` (4,3:1 sur un bouton danger enfoncé).
+- Mue.Wpf range ses valeurs par défaut dans un dictionnaire fusionné en premier : une palette de l'hôte chargée après `AddMissingDefaults` l'emporte.
+- La liste commune s'appelle `Mue.UpdateStyleKeys`, pour ne pas rendre ambigu `MueStyleKeys` chez un hôte qui importe `Mue` et `Mue.Wpf`.
 - `samples/Mue.Sample.Wpf` : appli d'exemple et captures neutres (`--capture`), hors paquets.
 - README en anglais (celui des paquets, images en liens absolus) et en français (`README.fr.md`), avec bannières, démarrage rapide compilé contre les paquets 0.3.0 et démonstrations animées hébergées dans le dépôt média `Mue-media`.
 - Icône des paquets (`docs/images/mue-icon.png`, logo plume ambre) : `PackageIcon`.

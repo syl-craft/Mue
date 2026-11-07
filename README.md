@@ -294,7 +294,7 @@ sealed class AppLanguageTexts : IUpdateTexts
 
 ## Themes
 
-`Mue.MueStyleKeys.Required` is the single list of resources the windows read, shared by WPF and Avalonia
+`Mue.UpdateStyleKeys.Required` is the single list of resources the windows read, shared by WPF and Avalonia
 (`Mue.Wpf.MueStyleKeys` and `Mue.Avalonia.MueStyleKeys` point to it). The default sets use a neutral blue
 accent and meet WCAG AA contrast, in light and dark.
 

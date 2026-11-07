@@ -19,9 +19,9 @@ public sealed class Release040Tests
         var variant = variantName == "Dark" ? ThemeVariant.Dark : ThemeVariant.Light;
         var defaults = (ResourceDictionary)AvaloniaXamlLoader.Load(new Uri("avares://Mue.Avalonia/Themes/Defaults.axaml"));
 
-        Assert.All(Mue.MueStyleKeys.Required, key => Assert.True(defaults.TryGetResource(key, variant, out _), key));
+        Assert.All(Mue.UpdateStyleKeys.Required, key => Assert.True(defaults.TryGetResource(key, variant, out _), key));
         var brushes = (ResourceDictionary)defaults.ThemeDictionaries[variant];
-        Assert.Equal(Mue.MueStyleKeys.Brushes.Order(), brushes.Keys.Cast<string>().Order());
+        Assert.Equal(Mue.UpdateStyleKeys.Brushes.Order(), brushes.Keys.Cast<string>().Order());
         Assert.Empty(ContrastPairs.Failures(key =>
         {
             defaults.TryGetResource(key, variant, out var value);
@@ -94,8 +94,8 @@ public sealed class Release040Tests
     [AvaloniaFact]
     public void Mue_windows_follow_the_application_theme_variant()
     {
-        // Sous Windows, Avalonia peint la barre de titre (mode sombre DWM) d'après ActualThemeVariant :
-        // il suffit que les fenêtres de Mue héritent du thème de l'application.
+        // Vérifie l'héritage du thème seulement. Sous Windows, Avalonia peint la barre de titre (mode sombre DWM) d'après
+        // ActualThemeVariant ; la plateforme headless n'a pas de fenêtre native : ce point est documenté, pas testé ici.
         var app = Application.Current ?? throw new InvalidOperationException();
         var requested = app.RequestedThemeVariant;
         app.RequestedThemeVariant = ThemeVariant.Dark;

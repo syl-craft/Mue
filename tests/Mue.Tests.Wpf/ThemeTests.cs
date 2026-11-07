@@ -1,5 +1,7 @@
 using System.Windows;
 using System.Windows.Media;
+using System.Windows.Threading;
+using Microsoft.Win32;
 using Mue.Wpf;
 
 namespace Mue.Tests;
@@ -15,9 +17,9 @@ public sealed class ThemeTests
     {
         var styles = Keys(MueStyles.Load("Defaults.Styles.xaml"));
         foreach (var file in new[] { "Defaults.Light.xaml", "Defaults.Dark.xaml" })
-            Assert.Equal(Mue.MueStyleKeys.Required.Order(), Keys(MueStyles.Load(file)).Concat(styles).Order());
+            Assert.Equal(Mue.UpdateStyleKeys.Required.Order(), Keys(MueStyles.Load(file)).Concat(styles).Order());
         var legacy = MueStyles.Load("Defaults.xaml");
-        Assert.All(Mue.MueStyleKeys.Required, key => Assert.NotNull(legacy[key]));
+        Assert.All(Mue.UpdateStyleKeys.Required, key => Assert.NotNull(legacy[key]));
     });
 
     [Theory]
@@ -37,13 +39,20 @@ public sealed class ThemeTests
     public Task Without_a_host_call_Mue_never_touches_the_title_bar_or_system_events() => WithTheme(app =>
     {
         // Hôte qui fournit toute sa palette, comme DockPad, et n'appelle jamais AddMissingDefaults ni SetTheme.
+        // L'application de test a activé Mue au démarrage : SetTheme(null) le ramène à l'état « jamais appelé ».
         MueStyles.SetTheme(app, null);
+        Assert.Null(app.TryFindResource("Brush.Surface"));
         AddHostPalette(app);
+        var palette = Mue.UpdateStyleKeys.Required.ToDictionary(key => key, key => app.Resources[key]);
         var (paints, opened) = OpenBlockersDialog();
+        MueStyles.SystemPreferenceChanged(null, new UserPreferenceChangedEventArgs(UserPreferenceCategory.General));
+        Flush();
 
         Assert.Empty(paints);
         Assert.Equal(1, opened);
         Assert.False(MueStyles.FollowsSystem);
+        Assert.DoesNotContain(app.Resources.MergedDictionaries, dictionary => Mue.UpdateStyleKeys.Required.Any(dictionary.Contains));
+        Assert.All(palette, pair => Assert.Same(pair.Value, app.Resources[pair.Key]));
         RemoveHostPalette(app);
     });
 
@@ -61,6 +70,42 @@ public sealed class ThemeTests
         Assert.Equal(new[] { true }, paints);
         Assert.False(MueStyles.FollowsSystem);
         app.Resources.Remove("Brush.Text");
+    });
+
+    [Fact]
+    public Task Host_dictionary_loaded_after_Mue_wins() => WithTheme(app =>
+    {
+        var hostText = new SolidColorBrush(Colors.Orange);
+        var hostPalette = new ResourceDictionary { ["Brush.Text"] = hostText };
+        app.Resources.MergedDictionaries.Add(hostPalette);
+
+        Assert.Same(hostText, app.TryFindResource("Brush.Text"));
+        MueStyles.SetTheme(app, MueTheme.Dark);
+        Assert.Same(hostText, app.TryFindResource("Brush.Text"));
+        app.Resources.MergedDictionaries.Remove(hostPalette);
+    });
+
+    [Fact]
+    public Task Windows_change_is_applied_on_the_UI_thread() => WithTheme(app =>
+    {
+        MueStyles.IsSystemDark = () => false;
+        MueStyles.SetTheme(app, MueTheme.System);
+        Assert.Equal(LightSurface, Brush(app, "Brush.Surface"));
+
+        MueStyles.IsSystemDark = () => true;
+        // SystemEvents arrive sur un thread système : Mue doit repasser par le dispatcher de l'application.
+        Task.Run(() => MueStyles.SystemPreferenceChanged(null, new UserPreferenceChangedEventArgs(UserPreferenceCategory.General))).Wait();
+        Flush();
+
+        Assert.Equal(DarkSurface, Brush(app, "Brush.Surface"));
+    });
+
+    [Fact]
+    public Task High_contrast_set_keeps_every_pair_readable() => WpfTestHost.Run(() =>
+    {
+        var brushes = MueStyles.HighContrastBrushes().ToDictionary(item => item.Key, item => (SolidColorBrush)item.Brush);
+        Assert.Equal(Mue.UpdateStyleKeys.Brushes.Order(), brushes.Keys.Order());
+        Assert.Empty(ContrastPairs.Failures(key => (brushes[key].Color.R, brushes[key].Color.G, brushes[key].Color.B)));
     });
 
     [Fact]
@@ -142,10 +187,13 @@ public sealed class ThemeTests
     }
     private static void RemoveHostPalette(Application app)
     {
-        foreach (var key in Mue.MueStyleKeys.Required) app.Resources.Remove(key);
+        foreach (var key in Mue.UpdateStyleKeys.Required) app.Resources.Remove(key);
     }
 
     private static IEnumerable<string> Keys(ResourceDictionary dictionary) => dictionary.Keys.Cast<string>();
+    private static Color LightSurface => ((SolidColorBrush)MueStyles.Load("Defaults.Light.xaml")["Brush.Surface"]).Color;
+    private static Color DarkSurface => ((SolidColorBrush)MueStyles.Load("Defaults.Dark.xaml")["Brush.Surface"]).Color;
+    private static void Flush() => Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.Background);
     private static Color Brush(Application app, string key) => ((SolidColorBrush)app.Resources[key]).Color;
 
     private sealed class NoHost : IUpdateDialogHost

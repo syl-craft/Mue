@@ -15,7 +15,9 @@ public static class MueStyles
 {
     private enum Palette { Light, Dark, HighContrast }
 
-    private static readonly Dictionary<string, object> AddedByMue = new();
+    // Valeurs de Mue, dans un dictionnaire fusionné en premier : toute ressource de l'hôte, directe ou dans un dictionnaire
+    // fusionné même chargé plus tard, l'emporte sur lui.
+    private static readonly ResourceDictionary Fallback = new();
     private static Application? _app;
     private static MueTheme? _theme;
     private static bool _fillsMissingKeys;
@@ -72,32 +74,22 @@ public static class MueStyles
 
     private static void Apply(Application app)
     {
-        var palette = EffectivePalette() ?? Palette.Light;
-        var values = Defaults(palette);
-        foreach (var key in Mue.MueStyleKeys.Required)
+        var values = Defaults(EffectivePalette() ?? Palette.Light);
+        foreach (var key in Mue.UpdateStyleKeys.Required)
         {
-            if (AddedByMue.TryGetValue(key, out var added))
-            {
-                // L'hôte a pu remplacer la valeur depuis : elle est alors à lui.
-                if (ReferenceEquals(app.Resources[key], added) == false) { AddedByMue.Remove(key); continue; }
-                app.Resources[key] = values[key];
-                AddedByMue[key] = values[key];
-            }
-            else if (_fillsMissingKeys && app.TryFindResource(key) == null)
-            {
-                app.Resources.Add(key, values[key]);
-                AddedByMue[key] = values[key];
-            }
+            if (Fallback.Contains(key)) Fallback[key] = values[key];
+            else if (_fillsMissingKeys && app.TryFindResource(key) == null) Fallback.Add(key, values[key]);
         }
+        if (Fallback.Count > 0 && app.Resources.MergedDictionaries.Contains(Fallback) == false)
+            app.Resources.MergedDictionaries.Insert(0, Fallback);
         foreach (var window in app.Windows.OfType<Window>().Where(window => window is UpdatesDialog or UpdateBlockersDialog))
             PaintIfManaged(window, EffectivePalette());
     }
 
     private static void RemoveAddedValues(Application app)
     {
-        foreach (var (key, added) in AddedByMue)
-            if (ReferenceEquals(app.Resources[key], added)) app.Resources.Remove(key);
-        AddedByMue.Clear();
+        app.Resources.MergedDictionaries.Remove(Fallback);
+        Fallback.Clear();
     }
 
     /// <summary>Palette du thème choisi ; <c>null</c> si l'hôte n'a rien choisi.</summary>
@@ -119,13 +111,13 @@ public static class MueStyles
     private static Dictionary<string, object> Defaults(Palette palette)
     {
         var values = new Dictionary<string, object>();
-        foreach (var key in Mue.MueStyleKeys.Styles) values[key] = SharedStyles.Value[key];
+        foreach (var key in Mue.UpdateStyleKeys.Styles) values[key] = SharedStyles.Value[key];
         if (palette == Palette.HighContrast)
             foreach (var (key, brush) in HighContrastBrushes()) values[key] = brush;
         else
         {
             var brushes = palette == Palette.Dark ? DarkBrushes.Value : LightBrushes.Value;
-            foreach (var key in Mue.MueStyleKeys.Brushes) values[key] = brushes[key];
+            foreach (var key in Mue.UpdateStyleKeys.Brushes) values[key] = brushes[key];
         }
         return values;
     }
@@ -137,7 +129,10 @@ public static class MueStyles
     internal static ResourceDictionary Load(string file) =>
         new() { Source = new Uri($"/Mue.Wpf;component/Themes/{file}", UriKind.Relative) };
 
-    /// <summary>Couleurs système du contraste élevé, relues à chaque changement de réglage Windows.</summary>
+    /// <summary>
+    /// Couleurs système du contraste élevé, relues à chaque changement de réglage Windows. Le compteur des groupes
+    /// (texte <c>TextSmall</c> sur fond <c>Border</c>) est inversé : fond couleur du texte, chiffre couleur de la fenêtre.
+    /// </summary>
     internal static IEnumerable<(string Key, Brush Brush)> HighContrastBrushes()
     {
         var text = SystemColors.WindowTextBrush;
@@ -150,7 +145,7 @@ public static class MueStyles
             ("Brush.Border", text), ("Brush.Danger", text), ("Brush.DangerBorder", text), ("Brush.DangerSurface", window),
             ("Brush.Separator", text), ("Brush.Surface", window), ("Brush.SurfaceCard", window), ("Brush.SurfaceMuted", window),
             ("Brush.Text", text), ("Brush.TextDetail", text), ("Brush.TextDisabled", SystemColors.GrayTextBrush),
-            ("Brush.TextLabel", text), ("Brush.TextSmall", text), ("Brush.TextSubtle", text), ("Brush.WarnTextAlt", text),
+            ("Brush.TextLabel", text), ("Brush.TextSmall", window), ("Brush.TextSubtle", text), ("Brush.WarnTextAlt", text),
         };
     }
 
@@ -169,7 +164,7 @@ public static class MueStyles
     }
 
     // Le mode clair ou sombre et le contraste élevé arrivent par cet événement, sur un thread système.
-    private static void SystemPreferenceChanged(object? sender, UserPreferenceChangedEventArgs e)
+    internal static void SystemPreferenceChanged(object? sender, UserPreferenceChangedEventArgs e)
     {
         var app = _app;
         app?.Dispatcher.BeginInvoke(() => { if (_theme == MueTheme.System) Apply(app); });

@@ -46,8 +46,8 @@ public sealed class UpdateTextKeysTests
     [Fact]
     public void Style_keys_are_brushes_then_styles()
     {
-        Assert.Equal(25, MueStyleKeys.Required.Count);
-        Assert.Equal(MueStyleKeys.Brushes.Concat(MueStyleKeys.Styles), MueStyleKeys.Required);
+        Assert.Equal(25, UpdateStyleKeys.Required.Count);
+        Assert.Equal(UpdateStyleKeys.Brushes.Concat(UpdateStyleKeys.Styles), UpdateStyleKeys.Required);
     }
 
     private sealed class PartialTexts(IReadOnlySet<string> keys) : IUpdateTexts
