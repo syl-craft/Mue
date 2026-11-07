@@ -135,6 +135,23 @@ public class UpdateConsentTests
     [Theory]
     [InlineData(UpdateShutdownBehavior.Kill)]
     [InlineData(UpdateShutdownBehavior.AskToQuit)]
+    public Task ABlockerWithoutStartTimeCannotBeIgnored(UpdateShutdownBehavior behavior) => WpfTestHost.Run(() =>
+    {
+        var host = new Host { Behavior = behavior };
+        var dialog = Dialog(host, [new UpdateBlocker { Pid = 1, Name = "Unknown", Started = 0, Unavailable = true }]);
+        WpfTestHost.Show(dialog, current =>
+        {
+            Assert.False(Button(current, "CloseButton").IsEnabled);
+            Press(current, "CloseButton");
+            Assert.Empty(current.IgnoredBlockers);
+            Assert.True(current.IsVisible);
+            current.Close();
+        });
+    });
+
+    [Theory]
+    [InlineData(UpdateShutdownBehavior.Kill)]
+    [InlineData(UpdateShutdownBehavior.AskToQuit)]
     public Task ANewUncheckedProcessAfterClosingIsNotAutomaticallyIgnored(UpdateShutdownBehavior behavior) => WpfTestHost.Run(() =>
     {
         var host = new Host { Behavior = behavior };
