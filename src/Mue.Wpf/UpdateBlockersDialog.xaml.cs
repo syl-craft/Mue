@@ -8,24 +8,26 @@ namespace Mue.Wpf;
 public partial class UpdateBlockersDialog : Window
 {
     private readonly Func<Task<IReadOnlyList<UpdateBlocker>>> _refresh;
-    private readonly Func<UpdateBlocker, bool, Task<bool>> _close;
+    private readonly Func<UpdateBlocker, bool, Task<UpdateBlockerCloseResult>> _close;
     private readonly IUpdateLog _log;
-    private readonly bool _forcesShutdown;
+    private readonly UpdateShutdownBehavior _shutdownBehavior;
     private bool _working;
     private bool _incomplete;
     private readonly HashSet<(int Pid, long Started)> _remaining = [];
     private IReadOnlyList<UpdateBlocker> _blockers = [];
 
     // Les captures injectent aussi les opérations : aucun clic de fixture ne consulte les vrais processus.
-    public UpdateBlockersDialog(string directory, IReadOnlyList<UpdateBlocker> blockers, IUpdateDialogHost host, bool forcesShutdown,
+    public UpdateBlockersDialog(UpdateBlockerQuery query, IReadOnlyList<UpdateBlocker> blockers, IUpdateDialogHost host, UpdateShutdownBehavior shutdownBehavior,
         Func<Task<IReadOnlyList<UpdateBlocker>>>? refresh = null,
-        Func<UpdateBlocker, bool, Task<bool>>? close = null, bool incomplete = false)
+        Func<UpdateBlocker, bool, Task<UpdateBlockerCloseResult>>? close = null, bool incomplete = false, string? summary = null)
     {
         InitializeComponent();
         _log = host.Log;
-        _forcesShutdown = forcesShutdown;
-        _refresh = refresh ?? (() => Task.Run(() => host.Finder.Find(directory, host.Classifier)));
-        _close = close ?? host.Finder.CloseAsync;
+        _shutdownBehavior = shutdownBehavior;
+        PreparationSummary.Text = summary ?? "";
+        PreparationSummary.Visibility = summary == null ? Visibility.Collapsed : Visibility.Visible;
+        _refresh = refresh ?? (() => Task.Run(() => host.Finder.Find(query, host.Classifier).Blockers));
+        _close = close ?? ((blocker, force) => host.Finder.CloseAsync(blocker, force));
         if (incomplete)
             foreach (var blocker in blockers.Where(b => b.Selected)) _remaining.Add((blocker.Pid, blocker.Started));
         ShowBlockers(blockers);
@@ -58,9 +60,12 @@ public partial class UpdateBlockersDialog : Window
     {
         StateLabel.Text = UpdateTexts.T(_incomplete ? "Update_IncompleteState" : "Update_StatePreparing").ToUpper(UpdateTexts.Formatting);
         Heading.Text = _incomplete ? UpdateTexts.F("Update_IncompleteTitle", _remaining.Count) : UpdateTexts.T("Update_BlockedTitle");
-        HelpText.Text = _forcesShutdown
-            ? UpdateTexts.T(_incomplete ? "Update_IncompleteHelpForced" : "Update_BlockedHelpForced")
-            : UpdateTexts.T(_incomplete ? "Update_IncompleteHelp" : "Update_BlockedHelp");
+        HelpText.Text = UpdateTexts.T(_shutdownBehavior switch
+        {
+            UpdateShutdownBehavior.Kill => _incomplete ? "Update_IncompleteHelpForced" : "Update_BlockedHelpForced",
+            UpdateShutdownBehavior.AskToQuit => _incomplete ? "Update_IncompleteHelpAskToQuit" : "Update_BlockedHelpAskToQuit",
+            _ => _incomplete ? "Update_IncompleteHelp" : "Update_BlockedHelp",
+        });
         ForceWarning.Visibility = _incomplete ? Visibility.Visible : Visibility.Collapsed;
         RemainingCard.Visibility = _incomplete ? Visibility.Visible : Visibility.Collapsed;
         // Les programmes encore ouverts sans qu'on ait tenté de les fermer passent sous les restants, avec leur titre.

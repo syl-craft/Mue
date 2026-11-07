@@ -15,9 +15,11 @@ public partial class UpdatesDialog : Window
     private UpdateNotes? _renderedNotes;
     private readonly DispatcherTimer _clock = new() { Interval = TimeSpan.FromMinutes(1) };
     private readonly IUpdateDialogHost _host;
-    public UpdatesDialog(UpdateService updates, IUpdateDialogHost host)
+    private readonly Func<UpdateBlockersDialog, bool?> _showBlockers;
+    public UpdatesDialog(UpdateService updates, IUpdateDialogHost host, Func<UpdateBlockersDialog, bool?>? showBlockers = null)
     {
         InitializeComponent(); _updates = updates; _host = host; DataContext = updates;
+        _showBlockers = showBlockers ?? (dialog => dialog.ShowDialog());
         Automatic.IsChecked = _updates.Automatic;
         _updates.PropertyChanged += Updates_Changed;
         _clock.Tick += Clock_Tick;
@@ -40,8 +42,14 @@ public partial class UpdatesDialog : Window
     }
     private void RefreshDisplay()
     {
+        if (_updates.State == UpdateState.Checking) SetPreparationSummary(null);
         InstallButton.SetResourceReference(StyleProperty, _updates.PrimaryAccent ? "PrimaryButton" : "SecondaryButton");
         RenderNotes();
+    }
+    private void SetPreparationSummary(string? summary)
+    {
+        PreparationSummary.Text = summary ?? "";
+        PreparationSummary.Visibility = summary == null ? Visibility.Collapsed : Visibility.Visible;
     }
     private void RenderNotes()
     {
@@ -104,11 +112,19 @@ public partial class UpdatesDialog : Window
         try
         {
             _updates.BeginPreparation();
-            if (!await _host.PrepareAsync(this, System.Threading.CancellationToken.None)) return;
-            var blockers = await Task.Run(() => _host.Finder.Find(_updates.ContentDirectory, _host.Classifier));
-            if (blockers.Count > 0 && new UpdateBlockersDialog(_updates.ContentDirectory, blockers, _host, _updates.ForcesShutdown) { Owner = this }.ShowDialog() != true) return;
+            var check = await _host.CheckAsync(this, System.Threading.CancellationToken.None);
+            SetPreparationSummary(check.Summary);
+            if (!check.CanContinue) return;
+            var scan = await Task.Run(() => _host.Finder.Find(_updates.BlockerQuery, _host.Classifier));
+            if (scan.Blockers.Count > 0)
+            {
+                var dialog = new UpdateBlockersDialog(_updates.BlockerQuery, scan.Blockers, _host,
+                    _updates.ShutdownBehavior, summary: check.Summary);
+                if (IsVisible) dialog.Owner = this;
+                if (_showBlockers(dialog) != true) return;
+            }
             // Le contrôle final améliore le retour ; le moteur natif décide ensuite du remplacement.
-            if ((await Task.Run(() => _host.Finder.Find(_updates.ContentDirectory, _host.Classifier, enrich: false))).Count > 0)
+            if ((await Task.Run(() => _host.Finder.Find(_updates.BlockerQuery, _host.Classifier, enrich: false))).Blockers.Count > 0)
                 throw new IOException(UpdateTexts.T("Update_LockError"));
             if (!await _host.PrepareAsync(this, System.Threading.CancellationToken.None)) return;
             _host.BeforeApply();

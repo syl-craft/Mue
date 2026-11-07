@@ -13,7 +13,7 @@ public class UpdateServiceTests
         public bool FailCheck, FailDownload, FailApply;
         public UpdateRelease? Release = new("2.0.0", "Release notes", new object());
         public TaskCompletionSource? DownloadStarted, FinishDownload;
-        public Task<UpdateRelease?> CheckAsync()
+        public Task<UpdateRelease?> CheckAsync(CancellationToken token)
         {
             Checks++;
             return FailCheck ? Task.FromException<UpdateRelease?>(new IOException("offline")) : Task.FromResult(Release);

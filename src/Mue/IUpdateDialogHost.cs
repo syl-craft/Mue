@@ -3,8 +3,11 @@ using System.Threading.Tasks;
 
 namespace Mue;
 
+public sealed record UpdatePreparationCheck(bool CanContinue, string? Summary = null);
+
 public interface IUpdateDialogHost
 {
+    Task<UpdatePreparationCheck> CheckAsync(object owner, CancellationToken token);
     Task<bool> PrepareAsync(object owner, CancellationToken token);
     void BeforeApply();
     void ApplyFailed();

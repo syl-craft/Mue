@@ -9,9 +9,10 @@ public class UpdateInjectionTests
     {
         IUpdateBackend backend = new StandardBackend();
         using var service = new UpdateService(backend);
-        Assert.True(backend.ForcesShutdown);
-        Assert.True(service.ForcesShutdown);
-        Assert.True(new VelopackBackendOptions("unused").ForcesShutdown);
+        Assert.True(backend.ShutdownBehavior == UpdateShutdownBehavior.Kill);
+        Assert.True(service.ShutdownBehavior == UpdateShutdownBehavior.Kill);
+        Assert.True(new VelopackBackendOptions("unused").ShutdownBehavior == (OperatingSystem.IsMacOS()
+            ? UpdateShutdownBehavior.AskToQuit : UpdateShutdownBehavior.Kill));
     }
 
     [Theory]
@@ -19,20 +20,20 @@ public class UpdateInjectionTests
     [InlineData(false)]
     public void ServiceRelaysTheBackendShutdownPolicy(bool forcesShutdown)
     {
-        using var service = new UpdateService(new FakeUpdateBackend { ForcesShutdown = forcesShutdown });
-        Assert.Equal(forcesShutdown, service.ForcesShutdown);
+        using var service = new UpdateService(new FakeUpdateBackend { ShutdownBehavior = forcesShutdown ? UpdateShutdownBehavior.Kill : UpdateShutdownBehavior.Refuse });
+        Assert.Equal(forcesShutdown, service.ShutdownBehavior == UpdateShutdownBehavior.Kill);
     }
 
     [Fact]
     public void DefaultClassifierHasNoApplicationExclusionsOrRelays()
     {
         var classifier = new ProgramClassifier();
-        var result = classifier.Classify(new(@"C:\app\DockPad.exe", @"C:\app", "DockPad.exe --mcp",
+        var result = classifier.Classify(new(@"C:\app\DockPad.exe", UpdateBlockerQuery.ForDirectory(@"C:\app"), "DockPad.exe --mcp",
             "claude.exe", @"C:\bin\claude.exe"));
         Assert.False(result.IsRelay);
         Assert.Equal("DockPad", result.Program);
-        Assert.False(classifier.IsIgnored(@"C:\outside\DockPad.exe", @"C:\app"));
-        Assert.False(classifier.IsIgnored(null, @"C:\app"));
+        Assert.False(classifier.IsIgnored(@"C:\outside\DockPad.exe", UpdateBlockerQuery.ForDirectory(@"C:\app")));
+        Assert.False(classifier.IsIgnored(null, UpdateBlockerQuery.ForDirectory(@"C:\app")));
     }
 
     [Fact]
@@ -136,7 +137,7 @@ public class UpdateInjectionTests
         public bool IsInstalled => false;
         public string CurrentVersion => "1.0.0";
         public string ContentDirectory => "";
-        public Task<UpdateRelease?> CheckAsync() => throw new NotSupportedException();
+        public Task<UpdateRelease?> CheckAsync(CancellationToken token) => throw new NotSupportedException();
         public Task DownloadAsync(UpdateRelease release, Action<int> progress, CancellationToken token) => throw new NotSupportedException();
         public void Apply(UpdateRelease release) => throw new NotSupportedException();
     }

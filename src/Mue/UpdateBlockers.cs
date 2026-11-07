@@ -10,6 +10,7 @@ public sealed class UpdateBlocker : System.ComponentModel.INotifyPropertyChanged
     public string Name { get; init; } = "";
     public long Started { get; init; }
     public string File { get; init; } = "";
+    public bool Unavailable { get; init; }
     public bool IsRelay
     {
         get => _isRelay;
@@ -28,7 +29,7 @@ public sealed class UpdateBlocker : System.ComponentModel.INotifyPropertyChanged
     }
     public string Label => $"{Name} · PID {Pid}";
     public string DisplayName => IsRelay ? ParentName ?? UpdateTexts.T("Update_UnknownProgram") : Name;
-    public string Detail => Started > 0
+    public string Detail => Unavailable ? UpdateTexts.F("Update_ProcessUnavailable", Pid) : Started > 0
         ? UpdateTexts.F("Update_ProcessDetail", FormatStarted(DateTime.FromFileTimeUtc(Started).ToLocalTime(), DateTime.Now), Pid)
         : UpdateTexts.F("Update_ProcessPid", Pid);
     public static string FormatStarted(DateTime started, DateTime now)

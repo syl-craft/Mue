@@ -15,14 +15,15 @@ namespace Mue;
 public sealed class WindowsUpdateBlockerFinder(IUpdateLog? log = null) : IUpdateBlockerFinder
 {
     private readonly IUpdateLog _log = log ?? new SilentUpdateLog();
-    public IReadOnlyList<UpdateBlocker> Find(string directory, IUpdateBlockerClassifier classifier, bool enrich = true)
+    public UpdateBlockerScan Find(UpdateBlockerQuery query, IUpdateBlockerClassifier classifier, bool enrich = true)
     {
         var results = new Dictionary<int, UpdateBlocker>();
         var sessionKey = new StringBuilder(33);
         Check(RmStartSession(out var session, 0, sessionKey));
         try
         {
-            var files = Directory.GetFiles(directory, "*", SearchOption.AllDirectories);
+            var files = query.Paths.SelectMany(path => Directory.Exists(path)
+                ? Directory.GetFiles(path, "*", SearchOption.AllDirectories) : new[] { Path.GetFullPath(path) }).Distinct().ToArray();
             foreach (var batch in files.Chunk(128))
                 Check(RmRegisterResources(session, (uint)batch.Length, batch, 0, null, 0, null));
             uint count = 0, needed = 0, reasons = 0;
@@ -35,11 +36,11 @@ public sealed class WindowsUpdateBlockerFinder(IUpdateLog? log = null) : IUpdate
                 if (status != 0) continue;
                 foreach (var info in infos.Take((int)count))
                 {
-                    if (info.Process.Pid == Environment.ProcessId) continue;
+                    if (!query.IncludeCurrentProcess && info.Process.Pid == Environment.ProcessId) continue;
                     results[info.Process.Pid] = new UpdateBlocker
                     {
                         Pid = info.Process.Pid, Name = info.Name,
-                        Started = info.Process.Started.ToLong(),
+                        Started = info.Process.Started.ToLong(), Unavailable = true,
                     };
                 }
             }
@@ -47,39 +48,33 @@ public sealed class WindowsUpdateBlockerFinder(IUpdateLog? log = null) : IUpdate
         }
         finally { RmEndSession(session); }
         // Les processus console peuvent retenir une image sans être signalés par Restart Manager.
-        foreach (var process in Process.GetProcesses())
+        var processes = Process.GetProcesses();
+        try
         {
-            using (process)
+            foreach (var process in processes)
             {
-                if (process.Id == Environment.ProcessId) continue;
-                try
-                {
-                    var image = process.MainModule?.FileName;
-                    if (classifier.IsIgnored(image, directory))
-                    {
-                        results.Remove(process.Id);
-                        continue;
-                    }
-                    if (image is not null && UpdatePaths.IsWithin(image, directory))
-                        results[process.Id] = new UpdateBlocker { Pid = process.Id, Name = process.ProcessName,
-                            Started = process.StartTime.ToFileTimeUtc(), File = image };
-                }
-                catch (System.ComponentModel.Win32Exception) { }
-                catch (InvalidOperationException) { }
+                if (!query.IncludeCurrentProcess && process.Id == Environment.ProcessId) continue;
+                results.TryGetValue(process.Id, out var blocker);
+                using var inspection = new ProcessInspection(process);
+                var inspected = InspectProcess(inspection, query, classifier, blocker);
+                if (inspected == null) results.Remove(process.Id);
+                else results[process.Id] = inspected;
             }
         }
+        finally { foreach (var process in processes) process.Dispose(); }
         // Le contrôle final de verrouillage n'a besoin d'aucun enrichissement WMI.
-        if (!enrich) return results.Values.ToArray();
+        if (!enrich) return new(results.Values.ToArray());
         var metadata = ReadProcessMetadata();
-        return results.Values.Select(blocker =>
+        return new(results.Values.Select(blocker =>
         {
+            if (blocker.Unavailable) return blocker;
             metadata.TryGetValue(blocker.Pid, out var process);
             ProcessMetadata? parent = null;
             if (process != null) metadata.TryGetValue(process.ParentPid, out parent);
             ProcessMetadata? grandparent = null;
             if (parent != null) metadata.TryGetValue(parent.ParentPid, out grandparent);
             var image = blocker.File.Length > 0 ? blocker.File : process?.Image ?? "";
-            var classification = classifier.Classify(new(image, directory, process?.CommandLine,
+            var classification = classifier.Classify(new(image, query, process?.CommandLine,
                 parent?.Name, parent?.Image, grandparent?.Name, grandparent?.Image));
             return new UpdateBlocker
             {
@@ -87,7 +82,83 @@ public sealed class WindowsUpdateBlockerFinder(IUpdateLog? log = null) : IUpdate
                 IsRelay = classification.IsRelay, ParentName = classification.IsRelay ? classification.Program : null,
                 Selected = classification.IsRelay,
             };
-        }).OrderBy(p => p.Name).ThenBy(p => p.Pid).ToArray();
+        }).OrderBy(p => p.Name).ThenBy(p => p.Pid).ToArray());
+    }
+
+    internal static UpdateBlocker? InspectProcess(IProcessInspection process, UpdateBlockerQuery query,
+        IUpdateBlockerClassifier classifier, UpdateBlocker? blocker)
+    {
+        UpdateBlocker? Unavailable() => blocker == null ? null : new()
+        {
+            Pid = blocker.Pid, Name = blocker.Name, Started = blocker.Started, Unavailable = true,
+        };
+        try
+        {
+            var image = process.FileName ?? throw new InvalidOperationException("Process image is unavailable");
+            if (classifier.IsIgnored(image, query)) return null;
+            if (blocker == null && !query.Contains(image)) return null;
+            var started = process.Started;
+            if (blocker != null && !UpdateBlockers.MatchesIdentity(blocker, started)) return Unavailable();
+            return new() { Pid = process.Id, Name = blocker?.Name ?? process.Name, Started = started, File = image };
+        }
+        catch (UnauthorizedAccessException) { return Unavailable(); }
+        catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode is 5 or 87) { return Unavailable(); }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            bool exited;
+            try { exited = process.HasExited; }
+            catch { return Unavailable(); }
+            if (exited) return null;
+            throw new InvalidOperationException($"Cannot inspect process {process.Id}", ex);
+        }
+    }
+
+    internal interface IProcessInspection
+    {
+        int Id { get; }
+        string? FileName { get; }
+        long Started { get; }
+        string Name { get; }
+        bool HasExited { get; }
+    }
+
+    private sealed class ProcessInspection(Process process) : IProcessInspection, IDisposable
+    {
+        private IntPtr _handle;
+        private IntPtr Handle
+        {
+            get
+            {
+                if (_handle != IntPtr.Zero) return _handle;
+                _handle = OpenProcess(0x1000, false, process.Id);
+                if (_handle == IntPtr.Zero) throw new System.ComponentModel.Win32Exception(Marshal.GetLastPInvokeError());
+                return _handle;
+            }
+        }
+        public int Id => process.Id;
+        public string Name => Path.GetFileNameWithoutExtension(FileName);
+        public bool HasExited => process.HasExited;
+        public string FileName
+        {
+            get
+            {
+                var buffer = new StringBuilder(32767);
+                var size = (uint)buffer.Capacity;
+                if (!QueryFullProcessImageName(Handle, 0, buffer, ref size))
+                    throw new System.ComponentModel.Win32Exception(Marshal.GetLastPInvokeError());
+                return buffer.ToString(0, (int)size);
+            }
+        }
+        public long Started
+        {
+            get
+            {
+                if (!GetProcessTimes(Handle, out var started, out _, out _, out _))
+                    throw new System.ComponentModel.Win32Exception(Marshal.GetLastPInvokeError());
+                return started.ToLong();
+            }
+        }
+        public void Dispose() { if (_handle != IntPtr.Zero) CloseHandle(_handle); }
     }
 
     internal sealed record ProcessMetadata(int ParentPid, string? Name, string? Image, string? CommandLine);
@@ -115,23 +186,32 @@ public sealed class WindowsUpdateBlockerFinder(IUpdateLog? log = null) : IUpdate
         return metadata;
     }
 
-    public async Task<bool> CloseAsync(UpdateBlocker blocker, bool force)
+    public async Task<UpdateBlockerCloseResult> CloseAsync(UpdateBlocker blocker, bool force, CancellationToken token = default)
     {
+        if (blocker.Unavailable) return UpdateBlockerCloseResult.AccessDenied;
+        token.ThrowIfCancellationRequested();
         try
         {
             using var process = Process.GetProcessById(blocker.Pid);
-            if (!UpdateBlockers.MatchesIdentity(blocker, process.StartTime.ToFileTimeUtc())) return true; // PID réutilisé.
+            using var inspection = new ProcessInspection(process);
+            if (!UpdateBlockers.MatchesIdentity(blocker, inspection.Started)) return UpdateBlockerCloseResult.IdentityChanged;
+            token.ThrowIfCancellationRequested();
             if (force || blocker.IsRelay) process.Kill(entireProcessTree: false);
-            else if (!process.CloseMainWindow()) return false;
-            await Task.WhenAny(process.WaitForExitAsync(), Task.Delay(2000));
-            return process.HasExited;
+            else if (!process.CloseMainWindow()) return UpdateBlockerCloseResult.StillRunning;
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
+            timeout.CancelAfter(TimeSpan.FromSeconds(2));
+            try { await process.WaitForExitAsync(timeout.Token); }
+            catch (OperationCanceledException) when (!token.IsCancellationRequested) { }
+            return process.HasExited ? UpdateBlockerCloseResult.Closed : UpdateBlockerCloseResult.StillRunning;
         }
-        catch (ArgumentException) { return true; }
-        catch (InvalidOperationException) { return true; }
+        catch (ArgumentException) { return UpdateBlockerCloseResult.Gone; }
+        catch (InvalidOperationException) { return UpdateBlockerCloseResult.Gone; }
         catch (System.ComponentModel.Win32Exception ex)
         {
             _log.Warn(ex, "Cannot close an update lock owner");
-            return false;
+            if (ex.NativeErrorCode == 5) return UpdateBlockerCloseResult.AccessDenied;
+            if (ex.NativeErrorCode == 87) return UpdateBlockerCloseResult.Gone;
+            throw;
         }
     }
     private static void Check(int result)
@@ -144,6 +224,15 @@ public sealed class WindowsUpdateBlockerFinder(IUpdateLog? log = null) : IUpdate
         public readonly long ToLong() => ((long)High << 32) | Low;
     }
     [StructLayout(LayoutKind.Sequential)] private struct UniqueProcess { public int Pid; public FileTime Started; }
+    [DllImport("kernel32.dll", SetLastError = true)] private static extern IntPtr OpenProcess(uint access, bool inherit, int pid);
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode, EntryPoint = "QueryFullProcessImageNameW")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool QueryFullProcessImageName(IntPtr process, uint flags, StringBuilder name, ref uint size);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetProcessTimes(IntPtr process, out FileTime creation, out FileTime exit, out FileTime kernel, out FileTime user);
+    [DllImport("kernel32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)] private static extern bool CloseHandle(IntPtr handle);
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)] private struct ProcessInfo
     {
         public UniqueProcess Process;
