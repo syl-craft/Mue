@@ -20,6 +20,15 @@ public class UpdateConsentTests
         Assert.False(UpdateBlockers.HasUnacceptedBlockers([], behavior, ignored));
     }
 
+    [Theory]
+    [InlineData(UpdateShutdownBehavior.Kill)]
+    [InlineData(UpdateShutdownBehavior.AskToQuit)]
+    public void ABlockerWithoutStartTimeIsNeverAccepted(UpdateShutdownBehavior behavior)
+    {
+        HashSet<(int Pid, long Started)> ignored = [(42, 0)];
+        Assert.True(UpdateBlockers.HasUnacceptedBlockers([new() { Pid = 42, Started = 0, Unavailable = true }], behavior, ignored));
+    }
+
     [Fact]
     public void EmbeddedLanguagesHaveExactlyTheSameKeysAndNoProductName()
     {

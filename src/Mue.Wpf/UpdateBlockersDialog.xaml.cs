@@ -87,7 +87,9 @@ public partial class UpdateBlockersDialog : Window
         CloseButton.Content = Confirming ? UpdateTexts.T("Update_ConfirmInstall") : _incomplete ? UpdateTexts.T("Update_ForceInstall")
             : CanIgnore && selectedCount == 0 ? UpdateTexts.T("Update_InstallIgnoring") : UpdateTexts.F("Update_CloseCount", selectedCount);
         CloseButton.SetResourceReference(StyleProperty, _incomplete ? "DangerButton" : "PrimaryButton");
-        CloseButton.IsEnabled = !_working && (Confirming || CanIgnore || _incomplete || selectedCount > 0);
+        // Un bloqueur sans heure de démarrage ne peut pas être ignoré : voir UpdateBlockers.HasUnacceptedBlockers.
+        var canIgnoreAll = CanIgnore && !_blockers.Where(b => b.Started <= 0).Any();
+        CloseButton.IsEnabled = !_working && (Confirming || canIgnoreAll || _incomplete || selectedCount > 0);
         StateLabel.SetResourceReference(TextBlock.ForegroundProperty, _incomplete ? "Brush.Danger" : "Brush.TextLabel");
     }
     private async Task RefreshAsync()
@@ -115,9 +117,13 @@ public partial class UpdateBlockersDialog : Window
         if (!CanIgnore && selected.Length == 0) return;
         _ignored.Clear();
         if (CanIgnore)
-            foreach (var blocker in _blockers.Where(b => !b.Selected && !_remaining.Contains((b.Pid, b.Started))))
+            foreach (var blocker in _blockers.Where(b => !b.Selected && b.Started > 0 && !_remaining.Contains((b.Pid, b.Started))))
                 _ignored.Add((blocker.Pid, blocker.Started));
-        if (CanIgnore && selected.Length == 0) { Accept(); return; }
+        if (selected.Length == 0)
+        {
+            if (!UpdateBlockers.HasUnacceptedBlockers(_blockers, _shutdownBehavior, _ignored)) Accept();
+            return;
+        }
         await RunAsync(async () =>
         {
             // Le contrôle d'identité est refait par CloseAsync pour CHAQUE arrêt, y compris forcé.

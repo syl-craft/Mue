@@ -42,9 +42,12 @@ public sealed class UpdateBlocker : System.ComponentModel.INotifyPropertyChanged
 
 public static class UpdateBlockers
 {
+    /// <summary>
+    /// Sans heure de démarrage, l'identité se réduit au PID : un PID réutilisé passerait pour le processus ignoré.
+    /// </summary>
     public static bool HasUnacceptedBlockers(IReadOnlyList<UpdateBlocker> blockers, UpdateShutdownBehavior behavior,
         IReadOnlySet<(int Pid, long Started)> ignored) => blockers
-        .Where(b => behavior == UpdateShutdownBehavior.Refuse || !ignored.Contains((b.Pid, b.Started))).Any();
+        .Where(b => behavior == UpdateShutdownBehavior.Refuse || b.Started <= 0 || !ignored.Contains((b.Pid, b.Started))).Any();
 
     /// <summary>
     /// État de la case « Tout sélectionner » : <c>null</c> quand une partie seulement est cochée.
