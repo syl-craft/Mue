@@ -7,7 +7,8 @@ public sealed class UpdateTextKeysTests
     [Fact]
     public void All_lists_every_neutral_key_including_the_040_additions()
     {
-        Assert.Equal(88, UpdateTextKeys.All.Count);
+        Assert.Equal(89, UpdateTextKeys.All.Count);
+        Assert.Contains("Update_Credit", UpdateTextKeys.All);
         Assert.Contains("Update_ConfirmHelpForced", UpdateTextKeys.All);
         Assert.Contains("Update_ConfirmHelpAskToQuit", UpdateTextKeys.All);
         Assert.Contains("Update_Download", UpdateTextKeys.All);

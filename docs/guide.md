@@ -8,6 +8,7 @@ Everything an app needs to integrate Mue: host contract, consent, command line, 
 - [Command line](#command-line)
 - [Texts and languages](#texts-and-languages)
 - [Themes](#themes)
+- [Credit](#credit)
 - [Required WPF resources](#required-wpf-resources)
 - [Avalonia integration](#avalonia-integration)
 - [Blocker detection](#blocker-detection)
@@ -267,6 +268,23 @@ MueStyles.SetTheme(app, null);                      // hand everything back to t
 **Avalonia.** The windows follow the application's `ThemeVariant`. On Windows, Avalonia paints the title bar from
 `ActualThemeVariant`. **Known limit, macOS:** the title bar follows the system appearance, not the app's
 `ThemeVariant`.
+
+## Credit
+
+The update window shows a discreet credit at the bottom left: the Mue feather and an « Updates by Mue » link to
+https://github.com/syl-craft/Mue (text key `Update_Credit`, translated). It is shown by default, including with the
+0.3.0 constructors. Hide it from code:
+
+```csharp
+new UpdatesDialog(service, host, new UpdatesDialogOptions { ShowCredit = false });
+```
+
+- The link has its own explicit style: an implicit `Button` style of the app does not apply to it. It is reached with
+  Tab, opened with Enter or Space, and underlined on hover and focus.
+- The text uses `Brush.TextSubtle` on the footer (`DialogFooter`, `Brush.SurfaceCard`). Mue's default sets meet AA for
+  this pair; **an app that supplies its own palette checks it in its own contrast tests.**
+- The feather keeps the two amber tones of the logo on a dark footer, and darker tones on a light footer, to stay
+  above 3:1 (WCAG 1.4.11). In Windows high contrast (WPF), it takes the system text colour.
 
 ## Required WPF resources
 

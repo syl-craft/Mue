@@ -11,4 +11,7 @@ public sealed record UpdatesDialogOptions
 
     /// <summary>Affichage de la fenêtre des bloqueurs ; par défaut <c>ShowDialog()</c>. Sert surtout aux tests.</summary>
     public Func<UpdateBlockersDialog, bool?>? ShowBlockers { get; init; }
+
+    /// <summary>Crédit « Updates by Mue » et lien vers le projet dans le pied de la fenêtre ; vrai par défaut.</summary>
+    public bool ShowCredit { get; init; } = true;
 }

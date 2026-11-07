@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Documents;
 using System.Windows.Threading;
 using System.Windows.Controls;
+using System.Windows.Media;
 
 namespace Mue.Wpf;
 
@@ -21,9 +22,13 @@ public partial class UpdatesDialog : Window
     {
         InitializeComponent(); _updates = updates; _host = host; DataContext = updates;
         MueStyles.Attach(this);
+        CreditLink.SetValue(System.Windows.Automation.AutomationProperties.NameProperty, $"{UpdateTexts.T("Update_Credit")}, GitHub");
+        Loaded += (_, _) => PaintCreditFeather();
+        Activated += (_, _) => PaintCreditFeather();
         // Le style système de CheckBox impose sa couleur de texte : en sombre, le libellé resterait noir. Seulement quand
         // Mue gère le thème et que l'hôte ne fournit pas de style de CheckBox (DockPad garde son rendu au pixel).
-        if (MueStyles.Theme != null && TryFindResource(typeof(CheckBox)) == null)
+        // Seules les ressources de l'application comptent : TryFindResource trouverait aussi le style de Windows.
+        if (MueStyles.Theme != null && Application.Current?.Resources[typeof(CheckBox)] == null)
             Automatic.SetResourceReference(ForegroundProperty, "Brush.Text");
         _showBlockers = showBlockers ?? (dialog => dialog.ShowDialog());
         Automatic.IsChecked = _updates.Automatic;
@@ -43,12 +48,40 @@ public partial class UpdatesDialog : Window
         : this(updates, host, options.ShowBlockers)
     {
         _separateInstallStep = options.SeparateInstallStep;
+        CreditLink.Visibility = options.ShowCredit ? Visibility.Visible : Visibility.Collapsed;
         if (_separateInstallStep == false) return;
         UpdateTexts.LanguageChanged += LanguageChanged;
         Closed += (_, _) => UpdateTexts.LanguageChanged -= LanguageChanged;
         RefreshDisplay();
     }
     private void LanguageChanged(object? sender, EventArgs e) => Dispatcher.BeginInvoke(RefreshDisplay);
+    /// <summary>Ouverture du lien de crédit ; remplacée par les tests pour ne pas lancer de navigateur.</summary>
+    internal static Action<string> OpenLink { get; set; } =
+        url => System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true });
+
+    private void Credit_Click(object sender, RoutedEventArgs e) => OpenLink(UpdateCredit.Url);
+
+    /// <summary>
+    /// Plume lisible sur le pied de l'hôte (WCAG 1.4.11, 3:1) : tons du logo sur fond sombre, tons foncés sur fond clair,
+    /// couleur du texte système en contraste élevé.
+    /// </summary>
+    internal void PaintCreditFeather()
+    {
+        var (dark, light) = CreditFeatherColors(SystemParameters.HighContrast, TryFindResource("Brush.SurfaceCard") as SolidColorBrush);
+        Resources["Mue.Credit.FeatherDark"] = new SolidColorBrush(dark);
+        Resources["Mue.Credit.FeatherLight"] = new SolidColorBrush(light);
+    }
+
+    internal static (Color Dark, Color Light) CreditFeatherColors(bool highContrast, SolidColorBrush? footer)
+    {
+        if (highContrast) return (SystemColors.WindowTextColor, SystemColors.WindowTextColor);
+        var background = footer?.Color ?? Colors.White;
+        var luminance = (0.2126 * background.R + 0.7152 * background.G + 0.0722 * background.B) / 255;
+        return luminance < 0.5
+            ? (Color.FromRgb(0xD9, 0x77, 0x1A), Color.FromRgb(0xF0, 0xA2, 0x3A))
+            : (Color.FromRgb(0xB3, 0x5C, 0x0A), Color.FromRgb(0xC9, 0x70, 0x0F));
+    }
+
     private void Automatic_Click(object sender, RoutedEventArgs e) =>
         _updates.Automatic = Automatic.IsChecked == true;
     private void Clock_Tick(object? sender, EventArgs e) => LastChecked.GetBindingExpression(TextBlock.TextProperty)?.UpdateTarget();

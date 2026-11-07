@@ -7,6 +7,51 @@
         WindowStartupLocation="CenterOwner" Background="{DynamicResource Brush.Surface}" FontFamily="Segoe UI">
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+        <!-- Couleurs de la plume, posées par le code selon le fond (clair, sombre, contraste élevé). -->
+        <SolidColorBrush x:Key="Mue.Credit.FeatherDark" Color="#B35C0A"/>
+        <SolidColorBrush x:Key="Mue.Credit.FeatherLight" Color="#C9700F"/>
+        <!-- Plume de Mue (version simplifiée du logo, 256 × 256) : les barbes sont de vrais vides. -->
+        <GeometryGroup x:Key="Mue.Credit.Barbs">
+            <PathGeometry Figures="M157.5,161 L9,81.1 L0.5,97 L149,176.9 Z"/>
+            <PathGeometry Figures="M105.5,132.9 L256.1,63.4 L248.5,47.1 L97.9,116.6 Z"/>
+        </GeometryGroup>
+        <!-- Style explicite : un style implicite de Button chez l'hôte ne s'applique pas au lien de crédit. -->
+        <Style x:Key="Mue.CreditLink" TargetType="Button">
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Template"><Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Frame" Background="Transparent" BorderBrush="Transparent" BorderThickness="1" CornerRadius="3" Padding="2,1">
+                        <StackPanel Orientation="Horizontal">
+                            <Viewbox Width="14" Height="14" Margin="0,0,6,0" VerticalAlignment="Center">
+                                <Canvas Width="256" Height="256">
+                                    <Path Fill="{DynamicResource Mue.Credit.FeatherDark}">
+                                        <Path.Data><CombinedGeometry GeometryCombineMode="Exclude" Geometry2="{StaticResource Mue.Credit.Barbs}">
+                                            <CombinedGeometry.Geometry1><PathGeometry Figures="M118,14 C64,56 48,154 118,206 Z"/></CombinedGeometry.Geometry1>
+                                        </CombinedGeometry></Path.Data>
+                                    </Path>
+                                    <Path Fill="{DynamicResource Mue.Credit.FeatherLight}">
+                                        <Path.Data><CombinedGeometry GeometryCombineMode="Exclude" Geometry2="{StaticResource Mue.Credit.Barbs}">
+                                            <CombinedGeometry.Geometry1><PathGeometry Figures="M138,14 C188,62 200,154 138,206 Z"/></CombinedGeometry.Geometry1>
+                                        </CombinedGeometry></Path.Data>
+                                    </Path>
+                                    <Rectangle Canvas.Left="118" Canvas.Top="210" Width="20" Height="34" RadiusX="10" RadiusY="10" Fill="{DynamicResource Mue.Credit.FeatherDark}"/>
+                                </Canvas>
+                            </Viewbox>
+                            <TextBlock x:Name="Label" Text="{TemplateBinding Content}" FontSize="11" VerticalAlignment="Center"
+                                       Foreground="{DynamicResource Brush.TextSubtle}"/>
+                        </StackPanel>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Label" Property="TextDecorations" Value="Underline"/></Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Label" Property="TextDecorations" Value="Underline"/>
+                            <Setter TargetName="Frame" Property="BorderBrush" Value="{DynamicResource Brush.Accent}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value></Setter>
+        </Style>
     </Window.Resources>
     <Window.Style><Style TargetType="Window">
         <Setter Property="Height" Value="540"/>
@@ -91,6 +136,8 @@
                 <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
                     <CheckBox x:Name="Automatic" Content="{mue:T Update_Automatic}" Click="Automatic_Click" FontSize="12"/>
                     <TextBlock x:Name="LastChecked" Text="{Binding LastChecked}" FontSize="11" Foreground="{DynamicResource Brush.TextSubtle}" Margin="22,3,0,0"/>
+                    <Button x:Name="CreditLink" Style="{StaticResource Mue.CreditLink}" Content="{mue:T Update_Credit}"
+                            HorizontalAlignment="Left" Margin="18,6,0,0" Click="Credit_Click"/>
                 </StackPanel>
                 <WrapPanel Grid.Column="1" VerticalAlignment="Center">
                     <Button Content="{Binding SecondaryLabel}" Style="{StaticResource SecondaryButton}" IsEnabled="{Binding SecondaryEnabled}" Click="Secondary_Click" Margin="0,0,8,0"/>

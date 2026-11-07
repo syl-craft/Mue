@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Documents;
 using Avalonia.Interactivity;
@@ -42,6 +43,9 @@ public partial class UpdatesDialog : Window
             _clock.Stop();
             _clock.Tick -= Clock_Tick;
         };
+        AutomationProperties.SetName(CreditLink, $"{UpdateTexts.T("Update_Credit")}, GitHub");
+        Opened += (_, _) => PaintCreditFeather();
+        ActualThemeVariantChanged += (_, _) => PaintCreditFeather();
         RefreshDisplay();
     }
 
@@ -50,6 +54,7 @@ public partial class UpdatesDialog : Window
         : this(updates, host, options.ShowBlockers)
     {
         _separateInstallStep = options.SeparateInstallStep;
+        CreditLink.IsVisible = options.ShowCredit;
         RefreshDisplay();
     }
 
@@ -128,6 +133,32 @@ public partial class UpdatesDialog : Window
             case UpdateAction.Install: await InstallAsync(); break;
             case UpdateAction.DownloadLatest: OpenReleasePage(_host.LatestReleasePage); break;
         }
+    }
+
+    /// <summary>Ouverture du lien de crédit ; remplacée par les tests pour ne pas lancer de navigateur.</summary>
+    internal static Action<string> OpenLink { get; set; } = url => Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+
+    private void Credit_Click(object? sender, RoutedEventArgs e)
+    {
+        try { OpenLink(UpdateCredit.Url); }
+        catch (Exception ex) { _host.Log.Warn(ex, "Cannot open the Mue page"); }
+    }
+
+    /// <summary>Plume lisible sur le pied de l'hôte (WCAG 1.4.11, 3:1) : tons du logo sur fond sombre, tons foncés sur fond clair.</summary>
+    internal void PaintCreditFeather()
+    {
+        var footer = this.TryFindResource("Brush.SurfaceCard", ActualThemeVariant, out var value) ? value as ISolidColorBrush : null;
+        var (dark, light) = CreditFeatherColors(footer?.Color ?? Colors.White);
+        Resources["Mue.Credit.FeatherDark"] = new SolidColorBrush(dark);
+        Resources["Mue.Credit.FeatherLight"] = new SolidColorBrush(light);
+    }
+
+    internal static (Color Dark, Color Light) CreditFeatherColors(Color background)
+    {
+        var luminance = (0.2126 * background.R + 0.7152 * background.G + 0.0722 * background.B) / 255;
+        return luminance < 0.5
+            ? (Color.FromRgb(0xD9, 0x77, 0x1A), Color.FromRgb(0xF0, 0xA2, 0x3A))
+            : (Color.FromRgb(0xB3, 0x5C, 0x0A), Color.FromRgb(0xC9, 0x70, 0x0F));
     }
 
     private void GitHub_Click(object? sender, RoutedEventArgs e) =>

@@ -8,6 +8,7 @@ Tout ce qu'il faut pour intégrer Mue dans une appli : contrat de l'hôte, accor
 - [Ligne de commande](#ligne-de-commande)
 - [Textes et langues](#textes-et-langues)
 - [Thèmes](#thèmes)
+- [Crédit](#crédit)
 - [Ressources WPF requises](#ressources-wpf-requises)
 - [Intégration Avalonia](#intégration-avalonia)
 - [Détection des bloqueurs](#détection-des-bloqueurs)
@@ -272,6 +273,23 @@ MueStyles.SetTheme(app, null);                      // rendre toute la main à l
 **Avalonia.** Les fenêtres suivent le `ThemeVariant` de l'application. Sous Windows, Avalonia peint la barre de
 titre d'après `ActualThemeVariant`. **Limite connue, macOS :** la barre de titre suit l'apparence du système, pas
 le `ThemeVariant` de l'appli.
+
+## Crédit
+
+La fenêtre de mise à jour affiche un crédit discret en bas à gauche : la plume de Mue et un lien « Mises à jour par
+Mue » vers https://github.com/syl-craft/Mue (clé de texte `Update_Credit`, traduite). Il est affiché par défaut, y
+compris avec les constructeurs 0.3.0. Pour le masquer par le code :
+
+```csharp
+new UpdatesDialog(service, host, new UpdatesDialogOptions { ShowCredit = false });
+```
+
+- Le lien a son propre style explicite : un style implicite de `Button` de l'appli ne s'y applique pas. Il s'atteint
+  avec Tab, s'ouvre avec Entrée ou Espace, et se souligne au survol et au focus.
+- Le texte utilise `Brush.TextSubtle` sur le pied (`DialogFooter`, `Brush.SurfaceCard`). Les jeux par défaut de Mue
+  respectent AA pour ce couple ; **une appli qui fournit sa palette le vérifie dans ses propres tests de contraste.**
+- La plume garde les deux tons ambre du logo sur un pied sombre, et des tons plus foncés sur un pied clair, pour rester
+  au-dessus de 3:1 (WCAG 1.4.11). En contraste élevé Windows (WPF), elle prend la couleur du texte système.
 
 ## Ressources WPF requises
 

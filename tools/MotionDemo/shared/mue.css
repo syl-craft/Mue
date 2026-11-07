@@ -147,3 +147,8 @@ body { font-family: "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: a
   background: var(--surface-card); border: 1px solid var(--border); color: var(--text); font-size: 28px; font-weight: 600;
   display: flex; align-items: center; justify-content: center; box-shadow: 0 5px 0 var(--border), 0 10px 24px rgba(0,0,0,.14); }
 .key.down { box-shadow: 0 1px 0 var(--border), 0 4px 10px rgba(0,0,0,.12); }
+
+/* ---------- Crédit « Updates by Mue » (0.6.0) ---------- */
+.mue .ft .credit { display: flex; align-items: center; gap: 6px; margin: 6px 0 0 18px; font-size: 11px; color: var(--text-subtle); }
+.credit .fd { fill: #B35C0A; } .credit .fl { fill: #C9700F; }
+:root[data-theme="dark"] .credit .fd { fill: #D9771A; } :root[data-theme="dark"] .credit .fl { fill: #F0A23A; }

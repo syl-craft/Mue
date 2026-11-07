@@ -276,4 +276,7 @@
   <data name="Update_Download" xml:space="preserve">
     <value>Download</value>
   </data>
+  <data name="Update_Credit" xml:space="preserve">
+    <value>Updates by Mue</value>
+  </data>
 </root>
