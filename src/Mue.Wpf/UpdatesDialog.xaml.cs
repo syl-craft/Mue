@@ -16,9 +16,15 @@ public partial class UpdatesDialog : Window
     private readonly DispatcherTimer _clock = new() { Interval = TimeSpan.FromMinutes(1) };
     private readonly IUpdateDialogHost _host;
     private readonly Func<UpdateBlockersDialog, bool?> _showBlockers;
+    private readonly bool _separateInstallStep;
     public UpdatesDialog(UpdateService updates, IUpdateDialogHost host, Func<UpdateBlockersDialog, bool?>? showBlockers = null)
     {
         InitializeComponent(); _updates = updates; _host = host; DataContext = updates;
+        MueStyles.Attach(this);
+        // Le style système de CheckBox impose sa couleur de texte : en sombre, le libellé resterait noir. Seulement quand
+        // Mue gère le thème et que l'hôte ne fournit pas de style de CheckBox (DockPad garde son rendu au pixel).
+        if (MueStyles.Theme != null && TryFindResource(typeof(CheckBox)) == null)
+            Automatic.SetResourceReference(ForegroundProperty, "Brush.Text");
         _showBlockers = showBlockers ?? (dialog => dialog.ShowDialog());
         Automatic.IsChecked = _updates.Automatic;
         _updates.PropertyChanged += Updates_Changed;
@@ -32,6 +38,17 @@ public partial class UpdatesDialog : Window
         };
         RefreshDisplay();
     }
+    /// <summary>Surcharge de la 0.4.0 : le constructeur 0.3.0 reste inchangé.</summary>
+    public UpdatesDialog(UpdateService updates, IUpdateDialogHost host, UpdatesDialogOptions options)
+        : this(updates, host, options.ShowBlockers)
+    {
+        _separateInstallStep = options.SeparateInstallStep;
+        if (_separateInstallStep == false) return;
+        UpdateTexts.LanguageChanged += LanguageChanged;
+        Closed += (_, _) => UpdateTexts.LanguageChanged -= LanguageChanged;
+        RefreshDisplay();
+    }
+    private void LanguageChanged(object? sender, EventArgs e) => Dispatcher.BeginInvoke(RefreshDisplay);
     private void Automatic_Click(object sender, RoutedEventArgs e) =>
         _updates.Automatic = Automatic.IsChecked == true;
     private void Clock_Tick(object? sender, EventArgs e) => LastChecked.GetBindingExpression(TextBlock.TextProperty)?.UpdateTarget();
@@ -44,7 +61,14 @@ public partial class UpdatesDialog : Window
     {
         if (_updates.State == UpdateState.Checking) SetPreparationSummary(null);
         InstallButton.SetResourceReference(StyleProperty, _updates.PrimaryAccent ? "PrimaryButton" : "SecondaryButton");
+        if (_separateInstallStep) ShowSeparateDownloadLabel();
         RenderNotes();
+    }
+    /// <summary>En deux étapes, une version disponible se télécharge d'abord : « Download » au lieu de « Download and install ».</summary>
+    private void ShowSeparateDownloadLabel()
+    {
+        if (_updates.State == UpdateState.Available) InstallButton.Content = UpdateTexts.T("Update_Download");
+        else InstallButton.SetBinding(ContentProperty, new System.Windows.Data.Binding(nameof(UpdateService.PrimaryLabel)));
     }
     private void SetPreparationSummary(string? summary)
     {
@@ -107,7 +131,10 @@ public partial class UpdatesDialog : Window
     }
     private async void Install_Click(object sender, RoutedEventArgs e)
     {
+        var downloadedBefore = _updates.State == UpdateState.Ready;
         if (_preparing || !await _updates.DownloadAsync()) return;
+        // En deux étapes, le téléchargement s'arrête sur « New version ready » : l'installation est un second clic.
+        if (_separateInstallStep && downloadedBefore == false) return;
         _preparing = true; InstallButton.IsEnabled = false;
         try
         {

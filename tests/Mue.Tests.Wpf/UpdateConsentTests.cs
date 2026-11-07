@@ -5,7 +5,7 @@ using Mue.Wpf;
 
 namespace Mue.Tests;
 
-public class UpdateConsentTests
+public partial class UpdateConsentTests
 {
     [Theory]
     [InlineData(null, false)]

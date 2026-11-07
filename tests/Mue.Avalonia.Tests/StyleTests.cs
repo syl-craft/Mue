@@ -188,7 +188,9 @@ public sealed class StyleTests
     [Fact]
     public void StyleContractMatchesWpfExactlyAndNoOtherDynamicKeyIsUsed()
     {
-        var source = File.ReadAllText(Path.Combine(Fixtures.Root, "src/Mue.Wpf/MueStyleKeys.cs"));
+        // Les commentaires de documentation citent aussi des noms entre guillemets (cref) : seules les lignes de code comptent.
+        var source = string.Join(Environment.NewLine, File.ReadAllLines(Path.Combine(Fixtures.Root, "src/Mue/MueStyleKeys.cs"))
+            .Where(line => line.TrimStart().StartsWith("///") == false));
         var keys = System.Text.RegularExpressions.Regex.Matches(source, "\"([^\"]+)\"").Select(m => m.Groups[1].Value).ToArray();
         Assert.Equal(keys, MueStyleKeys.Required);
         foreach (var file in Directory.EnumerateFiles(Path.Combine(Fixtures.Root, "src/Mue.Avalonia"), "*.axaml", SearchOption.AllDirectories))

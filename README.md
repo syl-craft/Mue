@@ -47,6 +47,15 @@ The core knows nothing about your UI or your update source. You plug in your own
 - **Generic texts**: `UpdateTexts.AppName` replaces `{AppName}` in the built-in texts.
 - **Mue.Avalonia**: dialogs and badge for Avalonia 12.
 
+### New in 0.4.0
+
+- **Text keys**: `UpdateTextKeys.All` and `Missing(...)`; a language is only accepted complete.
+- **WPF dark theme**: `MueTheme` (`System`, `Light`, `Dark`), `SetTheme`, dark title bar, high contrast respected. Nothing changes until the app calls Mue.
+- **One list of style keys** shared by WPF and Avalonia; WCAG AA contrast checked by tests.
+- **Confirmation help** when the installer may stop a program that appeared in the meantime.
+- **Separate download and install**, as an option (`UpdatesDialogOptions.SeparateInstallStep`).
+- **Sample app** `samples/Mue.Sample.Wpf`, with neutral captures.
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/syl-craft/Mue-media/main/videos/02-blockers-dark.gif">
   <img src="https://raw.githubusercontent.com/syl-craft/Mue-media/main/videos/02-blockers-light.gif" alt="Demo: the dialog lists programs still open, the user leaves the preselected sessions to the installer, closes one program and installs" width="960">
@@ -203,6 +212,18 @@ in both windows; when null, its slot stays collapsed.
    (PID and start time). A new process, even with a reused PID, blocks.
    Only then: `PrepareAsync`, `BeforeApply`, `Apply`, `ExitAfterApply`.
 
+**Options (0.4.0).** `new UpdatesDialog(service, host, new UpdatesDialogOptions { SeparateInstallStep = true })`
+splits the flow in two: **Download** only downloads and stops on *New version ready*; **Restart and install**
+then runs the preparation and installation. Without options, one click downloads and installs, as in 0.3.0.
+`UpdatesDialogOptions.ShowBlockers` replaces the blockers display (tests). The 0.3.0 constructors are kept;
+only the literal call `new UpdatesDialog(service, host, null)` becomes ambiguous at compile time.
+
+**Confirmation help.** With `Kill` or `AskToQuit`, the confirmation window says that programs which start using
+the app's files in the meantime will be stopped or asked to quit. With `Refuse`, it shows the summary only.
+
+**One group per program.** Several instances of the same program form a single group: they are closed or
+ignored together.
+
 **Postpone**, Esc or closing the window never give consent and never call `PrepareAsync`.
 `UpdateBlockersDialog` now takes an `UpdateBlockerScan`, and its `refresh` delegate returns that
 same type. `scan.Incomplete` shows a warning separate from the incomplete-closing state
@@ -231,6 +252,74 @@ release. This option defaults to `false`, notably for DockPad.
 UpdatesDialog has no parameterless constructor: the host owns the factory.
 The XAML extension `{mue:T Key}` creates a OneWay binding to a singleton indexer, refreshed on
 LanguageChanged. The host stays responsible for the UI thread when the language changes.
+
+## Texts and languages
+
+Mue ships English and French. **A language is only accepted complete**: a test checks that every built-in
+language has exactly the keys of the neutral resources.
+
+`UpdateTextKeys.All` lists every text key. `UpdateTextKeys.Missing(texts)` returns the keys your `IUpdateTexts`
+does not provide. It matters to apps that supply **all** their texts (a custom language, a pseudo-language):
+add `Assert.Empty(UpdateTextKeys.Missing(myTexts))` to your tests, and a key added by a new Mue version shows up
+there instead of as a mixed-language window. For an app that overrides only some texts, or none, the list is
+not empty by design: it is informative.
+
+**Language chosen by the app.** Mue's built-in texts follow `CurrentUICulture`. An app that picks its language
+without following Windows sets that culture and tells Mue through `LanguageChanged`:
+
+```csharp
+var texts = new AppLanguageTexts();
+UpdateTexts.Configure(texts);
+texts.Switch(CultureInfo.GetCultureInfo("fr"));
+
+/// <summary>Mue keeps its own English and French texts, but follows the language chosen in the app.</summary>
+sealed class AppLanguageTexts : IUpdateTexts
+{
+    public CultureInfo Formatting { get; private set; } = CultureInfo.CurrentUICulture;
+    public event EventHandler? LanguageChanged;
+
+    // No key provided: Mue answers with its own texts, in the CurrentUICulture language.
+    public bool TryGet(string key, out string text) { text = ""; return false; }
+    public string T(string key) => key;
+    public string F(string key, params object?[] args) => key;
+
+    public void Switch(CultureInfo culture)
+    {
+        CultureInfo.CurrentUICulture = CultureInfo.DefaultThreadCurrentUICulture = culture;
+        Formatting = culture;
+        LanguageChanged?.Invoke(this, EventArgs.Empty);
+    }
+}
+```
+
+## Themes
+
+`Mue.MueStyleKeys.Required` is the single list of resources the windows read, shared by WPF and Avalonia
+(`Mue.Wpf.MueStyleKeys` and `Mue.Avalonia.MueStyleKeys` point to it). The default sets use a neutral blue
+accent and meet WCAG AA contrast, in light and dark.
+
+**WPF.** Choose a theme for Mue's default values and for the title bar of its windows:
+
+```csharp
+MueStyles.AddMissingDefaults(app, MueTheme.System); // adds missing keys; System follows Windows light/dark mode
+MueStyles.SetTheme(app, MueTheme.Dark);             // on your own theme switch
+MueStyles.SetTheme(app, null);                      // hand everything back to the app
+```
+
+- **Until the app calls `AddMissingDefaults` or `SetTheme`, Mue.Wpf touches neither resources, nor the title bar,
+  nor Windows events.** An app that supplies its whole palette and paints its own title bars keeps its rendering.
+- Mue only replaces the values it added itself: a key supplied by the app is never touched.
+- `System` subscribes to Windows settings changes and re-applies; `SetTheme(app, null)` unsubscribes and removes
+  the values Mue added.
+- Windows high contrast: with `System`, Mue fills missing keys from the system colours, never from its light or
+  dark set, and leaves the title bar to Windows.
+- Title bar: dark (DWM immersive dark mode) when the effective theme is dark. `MueStyles.ManageTitleBar = false`
+  leaves it to the app; `MueStyles.WindowOpened` hands every Mue window to the app before it shows.
+- `AddMissingDefaults(app)` without a theme now means `System` (it meant light only in 0.3.0).
+
+**Avalonia.** The windows follow the application's `ThemeVariant`. On Windows, Avalonia paints the title bar from
+`ActualThemeVariant`. **Known limit, macOS:** the title bar follows the system appearance, not the app's
+`ThemeVariant`.
 
 ## Required WPF resources
 
@@ -313,6 +402,12 @@ reports). A matched executable whose identity cannot be read is listed with `Una
 These blockers are not preselected, make the scan `Incomplete` and cannot be closed.
 `CloseAsync(blocker, force, token)` returns the five `UpdateBlockerCloseResult` values;
 cancellation stops the wait without sending any further signal.
+
+## Sample app
+
+`samples/Mue.Sample.Wpf` is a « Notebook » app whose 1.3.0 update is simulated by `FakeUpdateBackend`, without
+network. `Mue.Sample.Wpf.exe --capture artifacts/wpf` writes neutral captures of the Mue windows (light and dark,
+English and French) into `artifacts/`, ignored by git. The sample is not packed.
 
 ## Local publishing
 

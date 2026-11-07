@@ -17,6 +17,7 @@ public partial class UpdateBlockersDialog : Window
     public IReadOnlySet<(int Pid, long Started)> IgnoredBlockers => _ignored;
     private bool CanIgnore => _shutdownBehavior != UpdateShutdownBehavior.Refuse;
     private bool Confirming => _requiresConfirmation && _blockers.Count == 0;
+    private string ConfirmHelpKey => _shutdownBehavior == UpdateShutdownBehavior.Kill ? "Update_ConfirmHelpForced" : "Update_ConfirmHelpAskToQuit";
     private bool _working;
     private bool _incomplete;
     private readonly HashSet<(int Pid, long Started)> _remaining = [];
@@ -28,6 +29,7 @@ public partial class UpdateBlockersDialog : Window
         Func<UpdateBlocker, bool, Task<UpdateBlockerCloseResult>>? close = null, bool incomplete = false, string? summary = null)
     {
         InitializeComponent();
+        MueStyles.Attach(this);
         _log = host.Log;
         _shutdownBehavior = shutdownBehavior;
         _requiresConfirmation = summary != null;
@@ -70,9 +72,10 @@ public partial class UpdateBlockersDialog : Window
         Title = UpdateTexts.T(Confirming ? "Update_ConfirmTitle" : "Update_BlockedTitle");
         StateLabel.Text = UpdateTexts.T(_incomplete ? "Update_IncompleteState" : "Update_StatePreparing").ToUpper(UpdateTexts.Formatting);
         Heading.Text = Confirming ? UpdateTexts.T("Update_ConfirmTitle") : _incomplete ? UpdateTexts.F("Update_IncompleteTitle", _remaining.Count) : UpdateTexts.T("Update_BlockedTitle");
-        HelpText.Visibility = Confirming ? Visibility.Collapsed : Visibility.Visible;
+        // En confirmation, l'aide reste visible si l'installateur peut arrêter un programme apparu entre-temps.
+        HelpText.Visibility = Confirming && _shutdownBehavior == UpdateShutdownBehavior.Refuse ? Visibility.Collapsed : Visibility.Visible;
         ScanIncomplete.Visibility = _scanIncomplete ? Visibility.Visible : Visibility.Collapsed;
-        HelpText.Text = UpdateTexts.T(_shutdownBehavior switch
+        HelpText.Text = UpdateTexts.T(Confirming ? ConfirmHelpKey : _shutdownBehavior switch
         {
             UpdateShutdownBehavior.Kill => _incomplete ? "Update_IncompleteHelpForced" : "Update_BlockedHelpForced",
             UpdateShutdownBehavior.AskToQuit => _incomplete ? "Update_IncompleteHelpAskToQuit" : "Update_BlockedHelpAskToQuit",
