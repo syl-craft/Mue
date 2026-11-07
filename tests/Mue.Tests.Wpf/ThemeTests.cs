@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Microsoft.Win32;
@@ -55,6 +56,39 @@ public sealed class ThemeTests
             Assert.True(pill.ActualWidth >= text.Width + 20, $"pastille {pill.ActualWidth:0} px pour un texte de {text.Width:0} px");
         }
         finally { window.Close(); }
+    });
+
+    public static TheoryData<string> BadgePalettes => new() { "HighContrast", "Defaults.Light.xaml", "Defaults.Dark.xaml" };
+
+    [Theory]
+    [MemberData(nameof(BadgePalettes))]
+    public Task Every_badge_background_keeps_its_text_readable(string palette) => WpfTestHost.Run(() =>
+    {
+        // Régression 0.6.2 : à l'appui sans version, fond Brush.Border ; en contraste élevé, il vaut la couleur du texte (1:1).
+        var brushes = palette == "HighContrast"
+            ? MueStyles.HighContrastBrushes().ToDictionary(item => item.Key, item => ((SolidColorBrush)item.Brush).Color)
+            : Mue.UpdateStyleKeys.Brushes.ToDictionary(key => key, key => ((SolidColorBrush)MueStyles.Load(palette)[key]).Color);
+        // Le style par défaut (Generic.xaml) ne s'applique qu'une fois la pastille dans une fenêtre affichée.
+        var badge = new UpdateBadge();
+        var window = new Window { Content = badge, SizeToContent = SizeToContent.WidthAndHeight, ShowActivated = false };
+        window.Show();
+        window.Close();
+        var backgrounds = new List<(bool HasRelease, string Key)> { (false, "Brush.SurfaceCard"), (true, "Brush.AccentTint") };
+        foreach (var trigger in badge.Template.Triggers.OfType<MultiTrigger>())
+        {
+            var hasRelease = trigger.Conditions.Where(condition => condition.Property == UpdateBadge.HasReleaseProperty)
+                .Select(condition => (bool)condition.Value).Single();
+            foreach (var setter in trigger.Setters.OfType<Setter>().Where(setter => setter.Property == Border.BackgroundProperty))
+                backgrounds.Add((hasRelease, (string)((DynamicResourceExtension)setter.Value).ResourceKey));
+        }
+        Assert.Contains(backgrounds, item => item.HasRelease == false && item.Key != "Brush.SurfaceCard");
+        foreach (var (hasRelease, key) in backgrounds)
+        {
+            var textColor = brushes[hasRelease ? "Brush.AccentText" : "Brush.TextLabel"];
+            var background = brushes[key];
+            var ratio = ContrastPairs.Ratio((textColor.R, textColor.G, textColor.B), (background.R, background.G, background.B));
+            Assert.True(ratio >= ContrastPairs.AaNormalText, $"{palette} : texte sur {key} ({(hasRelease ? "avec" : "sans")} version) : {ratio:0.00}");
+        }
     });
 
     [Fact]

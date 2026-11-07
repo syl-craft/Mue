@@ -35,7 +35,9 @@
                         </MultiTrigger>
                         <MultiTrigger>
                             <MultiTrigger.Conditions><Condition Property="HasRelease" Value="False"/><Condition Property="IsPressed" Value="True"/></MultiTrigger.Conditions>
-                            <Setter TargetName="Badge" Property="Background" Value="{DynamicResource Brush.Border}"/>
+                            <!-- Pas de fond Brush.Border : en contraste élevé, il vaut la couleur du texte (1:1). -->
+                            <Setter TargetName="Badge" Property="Background" Value="{DynamicResource Brush.SurfaceMuted}"/>
+                            <Setter TargetName="Badge" Property="BorderBrush" Value="{DynamicResource Brush.Accent}"/>
                         </MultiTrigger>
                         <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Badge" Property="BorderBrush" Value="{DynamicResource Brush.Accent}"/></Trigger>
                         <MultiTrigger>
