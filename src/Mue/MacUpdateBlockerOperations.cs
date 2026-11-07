@@ -114,20 +114,23 @@ internal sealed class MacUpdateBlockerOperations
             var process = _processes.ReadProcess(pid);
             if (process.Identity.State == MacProcessState.Gone) continue;
             var image = process.Image;
-            if (image != null && (!query.Paths.Where(path => MacUpdateBlockerRules.MatchesPath(image, path)).Any()
-                || classifier.IsIgnored(image, query))) continue;
-            var unavailable = process.Identity.State != MacProcessState.Readable || process.Image == null
+            // Sans chemin, rien ne rattache le processus à l'appli : l'ignorer, comme Windows ignore un processus
+            // illisible que Restart Manager ne signale pas. Il ne pourrait ni être ignoré ni fermé, et bloquerait tout.
+            if (image == null) continue;
+            if (!query.Paths.Where(path => MacUpdateBlockerRules.MatchesPath(image, path)).Any()
+                || classifier.IsIgnored(image, query)) continue;
+            var unavailable = process.Identity.State != MacProcessState.Readable
                 || process.Identity.Started <= 0 || process.Identity.Token == null;
             if (unavailable) ReportUnavailable(pid, process.Identity.Error);
-            var classification = enrich && !unavailable && image != null
+            var classification = enrich && !unavailable
                 ? classifier.Classify(new(image, query, null, null, null))
                 : new UpdateBlockerClassification(false, null);
             var blocker = new UpdateBlocker
             {
                 Pid = pid,
                 Started = unavailable ? 0 : process.Identity.Started,
-                Name = image == null ? UpdateTexts.T("Update_UnknownProgram") : image[(image.LastIndexOf('/') + 1)..],
-                File = image ?? "",
+                Name = image[(image.LastIndexOf('/') + 1)..],
+                File = image,
                 Unavailable = unavailable,
                 IsRelay = classification.IsRelay,
                 ParentName = classification.IsRelay ? classification.Program : null,

@@ -25,9 +25,9 @@ La fermeture douce attend cinq secondes ; le constructeur
 `new MacUpdateBlockerFinder(exitTimeout: TimeSpan.FromSeconds(7), log: log)` permet de régler ce délai.
 Conserver les objets retournés par `Find` et utiliser la même instance pour `CloseAsync` :
 elle garde leur audit token natif. Sans ce token, aucun signal n'est envoyé.
-`Find(query, classifier, enrich)` retourne un `UpdateBlockerScan`. Les processus dont le chemin
-est illisible restent listés avec `Unavailable`, même si leur appartenance aux chemins demandés
-ne peut pas être établie. Une identité illisible pour un exécutable retenu produit le même état.
+`Find(query, classifier, enrich)` retourne un `UpdateBlockerScan`. Un processus dont le chemin
+est illisible est ignoré : rien ne le rattache aux chemins demandés (comme sous Windows, hors signalement
+Restart Manager). Un exécutable retenu dont l'identité est illisible est listé avec `Unavailable`.
 Ces bloqueurs ne sont pas présélectionnés, rendent le scan `Incomplete` et ne peuvent pas être fermés.
 `CloseAsync(blocker, force, token)` retourne les cinq valeurs de `UpdateBlockerCloseResult` ;
 l'annulation interrompt l'attente sans envoyer de signal supplémentaire.
