@@ -17,6 +17,12 @@ public interface IUpdateBackend
     Task<UpdateRelease?> CheckAsync(CancellationToken token);
     Task DownloadAsync(UpdateRelease release, Action<int> progress, CancellationToken token);
     void Apply(UpdateRelease release);
+
+    /// <summary>
+    /// Installation sans fenêtre (<paramref name="silent"/>) et relancement au choix, pour la ligne de commande.
+    /// Par défaut, un backend qui ne connaît pas ces réglages installe comme <see cref="Apply(UpdateRelease)"/>.
+    /// </summary>
+    void Apply(UpdateRelease release, bool silent, bool restart) => Apply(release);
 }
 
 public sealed record UpdateRelease(string Version, string Notes, object Package, long? Size = null);
@@ -115,9 +121,13 @@ public sealed class UpdateService : INotifyPropertyChanged, IDisposable
     private void LanguageChanged(object? sender, EventArgs e) => Notify();
     private void Notify() => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(null));
     public Task CheckAsync() => CheckAsync(automatic: false);
-    private async Task CheckAsync(bool automatic)
+
+    /// <summary>Recherche manuelle ; faux si elle n'a pas eu lieu (permission refusée, recherche en cours, version prête).</summary>
+    internal Task<bool> TryCheckAsync() => CheckAsync(automatic: false);
+
+    private async Task<bool> CheckAsync(bool automatic)
     {
-        if (!_options.CanSearch() || !CanCheck || State == UpdateState.Ready) return;
+        if (!_options.CanSearch() || !CanCheck || State == UpdateState.Ready) return false;
         using var search = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         _search = search;
         _automaticSearch = automatic;
@@ -138,6 +148,7 @@ public sealed class UpdateService : INotifyPropertyChanged, IDisposable
         catch (Exception ex) { _options.Log.Warn(ex, "Update check failed"); State = UpdateState.Failed; }
         finally { _search = null; _automaticSearch = false; }
         Notify();
+        return true;
     }
     public async Task<bool> DownloadAsync()
     {
@@ -183,14 +194,19 @@ public sealed class UpdateService : INotifyPropertyChanged, IDisposable
         State = UpdateState.Ready; Notify();
     }
 
-    public void Apply()
+    public void Apply() => Apply(release => _backend.Apply(release));
+
+    /// <summary>Installation pour la ligne de commande : sans fenêtre si <paramref name="silent"/>, relancement au choix.</summary>
+    public void Apply(bool silent, bool restart) => Apply(release => _backend.Apply(release, silent, restart));
+
+    private void Apply(Action<UpdateRelease> applyRelease)
     {
         if (State is not (UpdateState.Ready or UpdateState.Preparing) || Release is null)
             throw new InvalidOperationException("Update is not ready");
         try
         {
             _options.PendingStore.ExpectedVersion = Release.Version;
-            _backend.Apply(Release);
+            applyRelease(Release);
             State = UpdateState.Installing;
         }
         catch

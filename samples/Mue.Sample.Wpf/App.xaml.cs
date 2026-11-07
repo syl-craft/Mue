@@ -19,6 +19,7 @@ public partial class App : Application
         UpdateTexts.AppName = "Notebook";
         var capture = e.Args.Length == 2 && e.Args[0] == "--capture" ? e.Args[1] : null;
         if (capture != null) { await CaptureAllAsync(capture); Shutdown(); return; }
+        if (e.Args.Length > 0 && e.Args[0] == "update") { Shutdown(await UpdateFromCommandLineAsync(e.Args.Skip(1).ToArray())); return; }
 
         MueStyles.AddMissingDefaults(this);
         var service = DemoService();
@@ -29,6 +30,26 @@ public partial class App : Application
     }
 
     public App() => Startup += OnStartup;
+
+    /// <summary>
+    /// <c>Mue.Sample.Wpf.exe update [--check] [--yes] [--close-blockers] [--restart] [--json]</c> : une appli WinExe n'a pas
+    /// de console ; elle s'attache à celle du parent si elle existe, sinon elle écrit dans la sortie redirigée.
+    /// </summary>
+    private static async Task<int> UpdateFromCommandLineAsync(string[] args)
+    {
+        // S'attacher à la console du parent remplacerait une sortie redirigée (fichier, tube) : seulement sans redirection.
+        if (GetStdHandle(StandardOutput) == IntPtr.Zero) AttachConsole(AttachParentProcess);
+        using var output = new StreamWriter(Console.OpenStandardOutput()) { AutoFlush = true };
+        using var service = DemoService();
+        return await UpdateCommand.RunAsync(service, new DemoHost(), args, output);
+    }
+
+    private const int AttachParentProcess = -1;
+    private const int StandardOutput = -11;
+    [System.Runtime.InteropServices.DllImport("kernel32.dll")]
+    private static extern IntPtr GetStdHandle(int handle);
+    [System.Runtime.InteropServices.DllImport("kernel32.dll")]
+    private static extern bool AttachConsole(int processId);
 
     internal static UpdateService DemoService() => new(new FakeUpdateBackend
     {

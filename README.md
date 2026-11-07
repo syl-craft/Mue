@@ -47,6 +47,10 @@ The core knows nothing about your UI or your update source. You plug in your own
 - **Generic texts**: `UpdateTexts.AppName` replaces `{AppName}` in the built-in texts.
 - **Mue.Avalonia**: dialogs and badge for Avalonia 12.
 
+### New in 0.5.0
+
+- **Command line** for scripts and AI agents: `UpdateCommand` (`--check`, `--yes`, `--close-blockers`, `--restart`, `--json`), exit codes, silent install. First install: `Setup.exe --silent`.
+
 ### New in 0.4.0
 
 - **Text keys**: `UpdateTextKeys.All` and `Missing(...)`; a language is only accepted complete.
@@ -253,6 +257,70 @@ UpdatesDialog has no parameterless constructor: the host owns the factory.
 The XAML extension `{mue:T Key}` creates a OneWay binding to a singleton indexer, refreshed on
 LanguageChanged. The host stays responsible for the UI thread when the language changes.
 
+## Command line
+
+For scripts and AI agents: install or update without any window. Updating from the window stays a click.
+
+**First install.** The Velopack installer of your app installs silently (checked on Velopack 1.2.161):
+
+```powershell
+.\MyApp-win-Setup.exe --silent                 # -s: no dialog, answers yes to every prompt
+.\MyApp-win-Setup.exe --silent --installto D:\Apps\MyApp --log setup.log
+```
+
+**Update.** The app relays a verb of its own command line to `UpdateCommand`, with the same `IUpdateDialogHost`
+as the window:
+
+```csharp
+if (args.FirstOrDefault() == "update")
+    return await UpdateCommand.RunAsync(service, host, args.Skip(1).ToArray(), Console.Out);
+```
+
+Same flow as the window (search, download, host check, summary, blockers, final check, one preparation, install),
+without any window. The command never counts its own process among the blockers.
+
+| Option | Effect |
+|---|---|
+| `--check` | Search only |
+| `--yes` | Accept the summary announced by the host (`UpdatePreparationCheck.Summary`) |
+| `--close-blockers` | Close the programs using the app's files, **the app's own open windows** included: soft close, except MCP relays, which the Windows finder stops directly (as in the window) |
+| `--restart` | Restart the app after installing (default: no restart, the script decides) |
+| `--json` | Write a single JSON object |
+
+| Code | `status` | Case |
+|---|---|---|
+| 0 | `up-to-date` / `updated` | Already up to date, or installation started |
+| 10 | `available` | `--check`: a new version exists |
+| 20 | `blocked` | Programs use the app's files (without `--close-blockers`, or still open after closing) |
+| 21 | `consent-required` | The host announces a summary, without `--yes` |
+| 22 | `unavailable` | App not installed by Velopack |
+| 23 | `refused` | The host refused (`CanContinue` or `PrepareAsync` false) |
+| 1 | `error` | Search, download or install failed |
+
+JSON: `status`, `current`, `available` (target version), `summary`, `blockers` (`name`, `pid`, `detail`, `relay`,
+`group`) and `message`. `relay` tells an agent that closing will cut MCP sessions, possibly its own.
+
+- **Code 0 `updated` comes before the end of the copy**: Velopack replaces the files once the app has exited. To know
+  when it is done, run `update --check --json` again until `status` is `up-to-date` and `current` equals the
+  `available` version you got.
+- **A windowed app (WinExe) is not awaited** by a plain call from PowerShell or an interactive cmd prompt. Checked on
+  the sample app:
+
+```powershell
+$result = & .\MyApp.exe update --json | Out-String   # waits, captures the JSON; code in $LASTEXITCODE
+$p = Start-Process .\MyApp.exe -ArgumentList "update --json" -Wait -PassThru -NoNewWindow -RedirectStandardOutput out.json
+$p.ExitCode
+```
+
+  In a `.cmd` script, cmd waits for a windowed app: `MyApp.exe update --json > out.json` gives the code in
+  `%ERRORLEVEL%` and the JSON in the file. At an interactive cmd prompt, `start /wait "" MyApp.exe update --json` gives
+  the code but not the output. A WinExe writes to the console only after `AttachConsole(ATTACH_PARENT_PROCESS)`: call it
+  **only when the output is not redirected** (`GetStdHandle(STD_OUTPUT_HANDLE)` returns 0), otherwise the console
+  replaces the redirection and the JSON is lost.
+- **An app in the notification area** may answer `StillRunning` to a soft close if its window hides instead of
+  quitting. The host handles it: relay `update` to the running instance, or make it quit on a soft close.
+- **macOS:** silent mode is not yet checked on a real machine.
+
 ## Texts and languages
 
 Mue ships English and French. **A language is only accepted complete**: a test checks that every built-in
@@ -407,7 +475,8 @@ cancellation stops the wait without sending any further signal.
 
 `samples/Mue.Sample.Wpf` is a « Notebook » app whose 1.3.0 update is simulated by `FakeUpdateBackend`, without
 network. `Mue.Sample.Wpf.exe --capture artifacts/wpf` writes neutral captures of the Mue windows (light and dark,
-English and French) into `artifacts/`, ignored by git. The sample is not packed.
+English and French) into `artifacts/`, ignored by git. `Mue.Sample.Wpf.exe update --json` runs the command line on the
+simulated update. The sample is not packed.
 
 ## Local publishing
 
