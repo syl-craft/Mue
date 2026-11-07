@@ -104,7 +104,8 @@ service.StartPolling();                                // recherche planifiée
 new Mue.Wpf.UpdatesDialog(service, host).ShowDialog(); // ou une UpdateBadge liée
 ```
 
-`host` est votre `IUpdateDialogHost` : il prépare et quitte votre appli, et trouve les programmes bloquants.
+`host` est votre `IUpdateDialogHost` : il prépare et quitte votre appli, et trouve les programmes bloquants. La fenêtre
+affiche un crédit discret « Mises à jour par Mue » ; le masquer avec `new UpdatesDialogOptions { ShowCredit = false }`.
 Tant que Mue n'est pas sur nuget.org, ajoutez d'abord le flux local : voir [Publication locale](docs/guide.fr.md#publication-locale).
 
 ```xml

@@ -35,6 +35,12 @@ function frame(layer, { x, y, s, w, h, title, body, cls = '' }) {
   return { outer, win, q: sel => win.querySelector(sel) };
 }
 
+// Plume du crédit (UpdatesDialog 0.6.0) : tons foncés sur pied clair, tons du logo sur pied sombre, via le CSS.
+const CREDIT_FEATHER = `<svg viewBox="0 0 256 256" width="14" height="14"><defs><mask id="credit-barbes"><rect width="256" height="256" fill="#fff"/>
+<path d="M118 150 L40 108 M138 108 L216 72" stroke="#000" stroke-width="18"/></mask></defs>
+<path class="fd" mask="url(#credit-barbes)" d="M118 14 C 64 56, 48 154, 118 206 Z"/><path class="fl" mask="url(#credit-barbes)" d="M138 14 C 188 62, 200 154, 138 206 Z"/>
+<rect class="fd" x="118" y="210" width="20" height="34" rx="10"/></svg>`;
+
 const NOTES = ['Trip to Lisbon', 'Reading list', 'Garden plan', 'Recipes', 'Ideas'];
 
 /** Appli hôte : une pastille Mue dans la barre d'outils, comme DockPad, PicaLite et AlterVNC. */
@@ -72,7 +78,8 @@ export function updatesDialog(layer, { x, y, s }) {
       <p><b>${APP} ${TO}</b> — demo data</p>
       <ul><li>Notes can be pinned to the top of the list.</li><li>Faster search across all notebooks.</li><li>Export to Markdown keeps images.</li></ul></div>
     <div class="summary" style="margin:0 20px 12px;display:none"></div>
-    <div class="ft"><div class="grow"><span class="cbx on">✓</span>Check for updates automatically<small>Checked just now</small></div>
+    <div class="ft"><div class="grow"><span class="cbx on">✓</span>Check for updates automatically<small>Checked just now</small>
+      <span class="credit">${CREDIT_FEATHER}Updates by Mue</span></div>
       <span class="bt b2"></span><span class="bt p b1"></span></div>
   </div>`;
   const f = frame(layer, { x, y, s, w: 580, h: 540, title: 'Updates', body });

@@ -104,7 +104,8 @@ service.StartPolling();                                // scheduled search
 new Mue.Wpf.UpdatesDialog(service, host).ShowDialog(); // or bind an UpdateBadge
 ```
 
-`host` is your `IUpdateDialogHost`: it prepares and exits your app, and finds the blocking programs.
+`host` is your `IUpdateDialogHost`: it prepares and exits your app, and finds the blocking programs. The update window
+shows a discreet « Updates by Mue » credit; hide it with `new UpdatesDialogOptions { ShowCredit = false }`.
 Until Mue is on nuget.org, add the local feed first: see [Local publishing](https://github.com/syl-craft/Mue/blob/main/docs/guide.md#local-publishing).
 
 ```xml

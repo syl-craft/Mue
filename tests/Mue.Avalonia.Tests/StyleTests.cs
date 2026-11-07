@@ -137,7 +137,9 @@ public sealed class StyleTests
             var theme = new ControlTheme(typeof(Button));
             app.Resources["SecondaryButton"] = theme;
             Assert.Same(theme, Fixtures.Control<Button>(dialog, "InstallButton").Theme);
-            Assert.Empty(dialog.Resources);
+            // La fenêtre ne porte que ses clés internes « Mue. » (crédit) : aucune ne masque une clé de l'hôte.
+            Assert.All(dialog.Resources.Keys, key => Assert.StartsWith("Mue.", key?.ToString()));
+            Assert.DoesNotContain(dialog.Resources.Keys, key => MueStyleKeys.Required.Contains(key?.ToString()));
             Assert.Empty(dialog.Resources.MergedDictionaries);
         }
         finally
@@ -196,7 +198,9 @@ public sealed class StyleTests
         foreach (var file in Directory.EnumerateFiles(Path.Combine(Fixtures.Root, "src/Mue.Avalonia"), "*.axaml", SearchOption.AllDirectories))
         {
             var references = System.Text.RegularExpressions.Regex.Matches(File.ReadAllText(file), @"\{DynamicResource ([^}]+)\}");
-            foreach (System.Text.RegularExpressions.Match reference in references) Assert.Contains(reference.Groups[1].Value, MueStyleKeys.Required);
+            // Les clés « Mue. » sont internes à la fenêtre (couleurs de la plume du crédit), pas fournies par l'hôte.
+            foreach (System.Text.RegularExpressions.Match reference in references.Where(match => match.Groups[1].Value.StartsWith("Mue.") == false))
+                Assert.Contains(reference.Groups[1].Value, MueStyleKeys.Required);
         }
     }
 }
