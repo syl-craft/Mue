@@ -23,8 +23,19 @@ public partial class UpdateConsentTests
             Assert.Equal(Visibility.Visible, credit.Visibility);
             Assert.True(credit.IsTabStop);
             Assert.Equal(UpdateTexts.T("Update_Credit"), credit.Content);
-            Assert.Equal($"{UpdateTexts.T("Update_Credit")}, GitHub", AutomationProperties.GetName(credit));
-            Press(window, "CreditLink");
+            Assert.Equal($"{UpdateTexts.T("Update_Credit")}, github.com/syl-craft/Mue", AutomationProperties.GetName(credit));
+
+            // Clavier réel : Tab depuis la case automatique atteint le lien, Entrée l'ouvre.
+            window.Show();
+            var automatic = (CheckBox)window.FindName("Automatic");
+            Assert.True(automatic.Focus());
+            automatic.MoveFocus(new System.Windows.Input.TraversalRequest(System.Windows.Input.FocusNavigationDirection.Next));
+            Flush();
+            Assert.Same(credit, System.Windows.Input.Keyboard.FocusedElement);
+            var source = PresentationSource.FromVisual(credit) ?? throw new InvalidOperationException("fenêtre non affichée");
+            credit.RaiseEvent(new System.Windows.Input.KeyEventArgs(System.Windows.Input.Keyboard.PrimaryDevice, source, 0,
+                System.Windows.Input.Key.Enter) { RoutedEvent = System.Windows.Input.Keyboard.KeyDownEvent });
+            Flush();
             Assert.Equal([UpdateCredit.Url], opened);
         }
         finally
@@ -75,6 +86,44 @@ public partial class UpdateConsentTests
         }
         finally { window.Close(); }
     });
+
+    [Fact]
+    public Task Credit_feather_follows_the_footer_while_the_window_is_open() => WpfTestHost.Run(() =>
+    {
+        var host = new Host();
+        using var service = AvailableService(host);
+        // Ouverte en sombre (tons du logo), puis bascule en clair sans réactivation : une plume figée tomberait à 2,1:1.
+        MueStyles.SetTheme(Application.Current, MueTheme.Dark);
+        var window = new UpdatesDialog(service, host);
+        try
+        {
+            window.Show();
+            Flush();
+            AssertReadableFeather(window);
+            MueStyles.SetTheme(Application.Current, MueTheme.Light);
+            Flush();
+            AssertReadableFeather(window);
+        }
+        finally
+        {
+            window.Close();
+            MueStyles.SetTheme(Application.Current, null);
+            MueStyles.AddMissingDefaults(Application.Current);
+        }
+    });
+
+    /// <summary>Lit les brosses réellement posées dans la fenêtre et le fond réellement dessiné du pied.</summary>
+    private static void AssertReadableFeather(UpdatesDialog window)
+    {
+        var footer = ((Border)window.FindName("Footer")).Background as SolidColorBrush
+            ?? throw new InvalidOperationException("pied sans couleur unie");
+        foreach (var key in new[] { "Mue.Credit.FeatherDark", "Mue.Credit.FeatherLight" })
+        {
+            var tone = ((SolidColorBrush)window.Resources[key]).Color;
+            var ratio = ContrastPairs.Ratio((tone.R, tone.G, tone.B), (footer.Color.R, footer.Color.G, footer.Color.B));
+            Assert.True(ratio >= 3, $"{key} {tone} sur {footer.Color} : {ratio:0.00}");
+        }
+    }
 
     [Theory]
     [InlineData("#FFFFFF")]

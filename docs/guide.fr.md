@@ -284,8 +284,9 @@ compris avec les constructeurs 0.3.0. Pour le masquer par le code :
 new UpdatesDialog(service, host, new UpdatesDialogOptions { ShowCredit = false });
 ```
 
-- Le lien a son propre style explicite : un style implicite de `Button` de l'appli ne s'y applique pas. Il s'atteint
-  avec Tab, s'ouvre avec Entrée ou Espace, et se souligne au survol et au focus.
+- Le lien a son propre style (WPF) et son propre type de contrôle (Avalonia) : les styles de l'appli qui visent
+  `Button` ne s'y appliquent pas. Il s'atteint avec Tab, s'ouvre avec Entrée ou Espace, et se souligne au survol et au
+  focus. Les lecteurs d'écran annoncent « Mises à jour par Mue, github.com/syl-craft/Mue », dans la langue courante.
 - Le texte utilise `Brush.TextSubtle` sur le pied (`DialogFooter`, `Brush.SurfaceCard`). Les jeux par défaut de Mue
   respectent AA pour ce couple ; **une appli qui fournit sa palette le vérifie dans ses propres tests de contraste.**
 - La plume garde les deux tons ambre du logo sur un pied sombre, et des tons plus foncés sur un pied clair, pour rester

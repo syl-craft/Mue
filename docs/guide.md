@@ -279,8 +279,9 @@ https://github.com/syl-craft/Mue (text key `Update_Credit`, translated). It is s
 new UpdatesDialog(service, host, new UpdatesDialogOptions { ShowCredit = false });
 ```
 
-- The link has its own explicit style: an implicit `Button` style of the app does not apply to it. It is reached with
-  Tab, opened with Enter or Space, and underlined on hover and focus.
+- The link has its own style (WPF) and its own control type (Avalonia): the app's styles that target `Button` do not
+  apply to it. It is reached with Tab, opened with Enter or Space, and underlined on hover and focus. Screen readers
+  announce « Updates by Mue, github.com/syl-craft/Mue », in the current language.
 - The text uses `Brush.TextSubtle` on the footer (`DialogFooter`, `Brush.SurfaceCard`). Mue's default sets meet AA for
   this pair; **an app that supplies its own palette checks it in its own contrast tests.**
 - The feather keeps the two amber tones of the logo on a dark footer, and darker tones on a light footer, to stay

@@ -130,7 +130,7 @@
             </Grid>
         </Border>
         <TextBlock x:Name="PreparationSummary" Grid.Row="2" Visibility="Collapsed" TextWrapping="Wrap" Margin="20,0,20,12"/>
-        <Border Grid.Row="3" Style="{StaticResource DialogFooter}" Padding="20,12">
+        <Border x:Name="Footer" Grid.Row="3" Style="{StaticResource DialogFooter}" Padding="20,12">
             <Grid>
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                 <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">

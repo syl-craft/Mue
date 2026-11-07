@@ -3,7 +3,7 @@
 ## 0.6.0 — 2026-11-07
 
 - Crédit « Updates by Mue » dans `UpdatesDialog` (WPF et Avalonia) : plume de Mue et lien vers https://github.com/syl-craft/Mue, en bas à gauche, affiché par défaut, masquable avec `UpdatesDialogOptions.ShowCredit = false`. Nouvelle clé `Update_Credit` (89 clés), constante `UpdateCredit.Url`.
-- Le lien a un style explicite (aucun style implicite de l'hôte ne s'y applique), s'atteint au clavier et porte un nom d'automatisation.
+- Le lien a un style explicite (WPF) et un type propre, `CreditLinkButton` (Avalonia) : les styles de l'hôte qui visent `Button` ne s'y appliquent pas. Il s'atteint au clavier et son nom d'automatisation suit la langue. La plume suit le fond réel du pied (changement de thème ou de palette, contraste élevé) pendant que la fenêtre est ouverte.
 - Plume lisible à 3:1 au moins : tons du logo sur pied sombre, tons foncés (`#B35C0A`, `#C9700F`) sur pied clair, texte système en contraste élevé (WPF).
 - Correctif 0.4.0 : en thème sombre géré par Mue, le libellé « Check for updates automatically » restait noir, car la recherche d'un style de case à cocher trouvait celui de Windows. Seules les ressources de l'application comptent désormais.
 - README de vitrine, court et structuré (fonctionnalités, démonstrations en grille, démarrage rapide, paquets) ; le guide d'intégration complet passe dans `docs/guide.md` et `docs/guide.fr.md`.

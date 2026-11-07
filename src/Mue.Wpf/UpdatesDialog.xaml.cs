@@ -22,9 +22,8 @@ public partial class UpdatesDialog : Window
     {
         InitializeComponent(); _updates = updates; _host = host; DataContext = updates;
         MueStyles.Attach(this);
-        CreditLink.SetValue(System.Windows.Automation.AutomationProperties.NameProperty, $"{UpdateTexts.T("Update_Credit")}, GitHub");
-        Loaded += (_, _) => PaintCreditFeather();
-        Activated += (_, _) => PaintCreditFeather();
+        NameCreditLink();
+        WatchCreditFeather();
         // Le style système de CheckBox impose sa couleur de texte : en sombre, le libellé resterait noir. Seulement quand
         // Mue gère le thème et que l'hôte ne fournit pas de style de CheckBox (DockPad garde son rendu au pixel).
         // Seules les ressources de l'application comptent : TryFindResource trouverait aussi le style de Windows.
@@ -62,12 +61,41 @@ public partial class UpdatesDialog : Window
     private void Credit_Click(object sender, RoutedEventArgs e) => OpenLink(UpdateCredit.Url);
 
     /// <summary>
-    /// Plume lisible sur le pied de l'hôte (WCAG 1.4.11, 3:1) : tons du logo sur fond sombre, tons foncés sur fond clair,
-    /// couleur du texte système en contraste élevé.
+    /// La plume suit le fond réellement dessiné du pied (thème de Mue, palette de l'hôte remplacée) et le contraste élevé ;
+    /// le nom annoncé suit la langue. Abonnements retirés à la fermeture.
+    /// </summary>
+    private void WatchCreditFeather()
+    {
+        var background = System.ComponentModel.DependencyPropertyDescriptor.FromProperty(System.Windows.Controls.Border.BackgroundProperty, typeof(System.Windows.Controls.Border));
+        EventHandler footerChanged = (_, _) => PaintCreditFeather();
+        System.ComponentModel.PropertyChangedEventHandler systemChanged = (_, e) =>
+        {
+            if (e.PropertyName == nameof(SystemParameters.HighContrast)) Dispatcher.BeginInvoke(PaintCreditFeather);
+        };
+        EventHandler languageChanged = (_, _) => Dispatcher.BeginInvoke(NameCreditLink);
+        background.AddValueChanged(Footer, footerChanged);
+        SystemParameters.StaticPropertyChanged += systemChanged;
+        UpdateTexts.LanguageChanged += languageChanged;
+        Loaded += (_, _) => PaintCreditFeather();
+        Closed += (_, _) =>
+        {
+            background.RemoveValueChanged(Footer, footerChanged);
+            SystemParameters.StaticPropertyChanged -= systemChanged;
+            UpdateTexts.LanguageChanged -= languageChanged;
+        };
+    }
+
+    /// <summary>Nom annoncé par les lecteurs d'écran : le texte traduit et l'adresse ouverte.</summary>
+    private void NameCreditLink() => System.Windows.Automation.AutomationProperties.SetName(CreditLink,
+        $"{UpdateTexts.T("Update_Credit")}, {UpdateCredit.Url.Replace("https://", "")}");
+
+    /// <summary>
+    /// Plume lisible sur le pied réellement dessiné (WCAG 1.4.11, 3:1) : tons du logo sur fond sombre, tons foncés sur
+    /// fond clair, couleur du texte système en contraste élevé.
     /// </summary>
     internal void PaintCreditFeather()
     {
-        var (dark, light) = CreditFeatherColors(SystemParameters.HighContrast, TryFindResource("Brush.SurfaceCard") as SolidColorBrush);
+        var (dark, light) = CreditFeatherColors(SystemParameters.HighContrast, Footer.Background as SolidColorBrush);
         Resources["Mue.Credit.FeatherDark"] = new SolidColorBrush(dark);
         Resources["Mue.Credit.FeatherLight"] = new SolidColorBrush(light);
     }

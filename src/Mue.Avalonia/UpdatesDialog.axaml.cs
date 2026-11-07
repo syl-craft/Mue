@@ -43,7 +43,11 @@ public partial class UpdatesDialog : Window
             _clock.Stop();
             _clock.Tick -= Clock_Tick;
         };
-        AutomationProperties.SetName(CreditLink, $"{UpdateTexts.T("Update_Credit")}, GitHub");
+        NameCreditLink();
+        UpdateTexts.LanguageChanged += CreditLanguageChanged;
+        Closed += (_, _) => UpdateTexts.LanguageChanged -= CreditLanguageChanged;
+        // La plume suit le fond réellement dessiné du pied : thème, palette de l'hôte remplacée, variante.
+        Footer.PropertyChanged += (_, e) => { if (e.Property == Border.BackgroundProperty) PaintCreditFeather(); };
         Opened += (_, _) => PaintCreditFeather();
         ActualThemeVariantChanged += (_, _) => PaintCreditFeather();
         RefreshDisplay();
@@ -144,10 +148,16 @@ public partial class UpdatesDialog : Window
         catch (Exception ex) { _host.Log.Warn(ex, "Cannot open the Mue page"); }
     }
 
-    /// <summary>Plume lisible sur le pied de l'hôte (WCAG 1.4.11, 3:1) : tons du logo sur fond sombre, tons foncés sur fond clair.</summary>
+    private void CreditLanguageChanged(object? sender, EventArgs e) => Dispatcher.UIThread.Post(NameCreditLink);
+
+    /// <summary>Nom annoncé par les lecteurs d'écran : le texte traduit et l'adresse ouverte.</summary>
+    private void NameCreditLink() =>
+        AutomationProperties.SetName(CreditLink, $"{UpdateTexts.T("Update_Credit")}, {UpdateCredit.Url.Replace("https://", "")}");
+
+    /// <summary>Plume lisible sur le pied réellement dessiné (WCAG 1.4.11, 3:1) : tons du logo sur fond sombre, tons foncés sur fond clair.</summary>
     internal void PaintCreditFeather()
     {
-        var footer = this.TryFindResource("Brush.SurfaceCard", ActualThemeVariant, out var value) ? value as ISolidColorBrush : null;
+        var footer = Footer.Background as ISolidColorBrush;
         var (dark, light) = CreditFeatherColors(footer?.Color ?? Colors.White);
         Resources["Mue.Credit.FeatherDark"] = new SolidColorBrush(dark);
         Resources["Mue.Credit.FeatherLight"] = new SolidColorBrush(light);
