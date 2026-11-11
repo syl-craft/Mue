@@ -16,6 +16,10 @@
 </p>
 
 <p align="center">
+  <a href="https://ko-fi.com/sylcraft"><img src="https://img.shields.io/badge/Ko--fi-Support%20me-FF5E5B?logo=ko-fi&logoColor=white" alt="Support me on Ko-fi"></a>
+</p>
+
+<p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/syl-craft/Mue-media/main/videos/01-update-flow-dark.gif">
     <img src="https://raw.githubusercontent.com/syl-craft/Mue-media/main/videos/01-update-flow-light.gif" alt="Demo: the app finds version 1.3.0, downloads and installs it in one click, then restarts on the new version" width="860">
